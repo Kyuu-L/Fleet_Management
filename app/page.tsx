@@ -53,6 +53,7 @@ type Issue = {
   urgent: boolean;
   done: boolean;
   photos?: PhotoPreview[];
+  source?: "report" | "weekly";
 };
 
 type WorkEntry = {
@@ -147,9 +148,9 @@ const issueCategories = [
 const totalCheckCount = checkItems.length + 5;
 
 const issueSeed: Issue[] = [
-  { id: 1, vehicle: "GJ-391-RT", title: "Bruit important au freinage", meta: "Signalé aujourd'hui à 07:42 · Lucas M.", urgent: true, done: false },
-  { id: 2, vehicle: "FH-704-LP", title: "Voyant moteur intermittent", meta: "Signalé hier à 16:18 · Sarah D.", urgent: false, done: false },
-  { id: 3, vehicle: "GA-218-NK", title: "Éclairage arrière droit", meta: "Traité le 14 août · Thomas B.", urgent: false, done: true },
+  { id: 1, vehicle: "GJ-391-RT", title: "Bruit important au freinage", meta: "Signalé aujourd'hui à 07:42 · Lucas M.", urgent: true, done: false, source: "report" },
+  { id: 2, vehicle: "FH-704-LP", title: "Voyant moteur intermittent", meta: "Signalé hier à 16:18 · Sarah D.", urgent: false, done: false, source: "report" },
+  { id: 3, vehicle: "GA-218-NK", title: "Éclairage arrière droit", meta: "Traité le 14 août · Thomas B.", urgent: false, done: true, source: "report" },
 ];
 
 const operationsSeed: Record<number, Operation[]> = {
@@ -279,6 +280,14 @@ export default function Home() {
   const pendingMaintenance = Object.entries(operations).flatMap(([vehicleId, vehicleOperations]) =>
     vehicleOperations.filter((operation) => !operation.done).map((operation) => ({ ...operation, vehicleId: Number(vehicleId) })),
   );
+  const periodicPending = pendingMaintenance.filter((operation) => operation.recurrenceKm || operation.recurrenceMonths);
+  const periodicCompleted = Object.entries(operations).flatMap(([vehicleId, vehicleOperations]) =>
+    vehicleOperations.filter((operation) => operation.done && (operation.recurrenceKm || operation.recurrenceMonths)).map((operation) => ({ ...operation, vehicleId: Number(vehicleId) })),
+  );
+  const queueTodoCount = issues.filter((issue) => !issue.done).length + periodicPending.length;
+  const queueHasItems = issueFilter === "todo"
+    ? issues.some((issue) => !issue.done) || periodicPending.length > 0
+    : issues.some((issue) => issue.done) || periodicCompleted.length > 0;
   const filteredVehicles = useMemo(() => {
     const query = search.toLowerCase().trim();
     if (!query) return fleetVehicles;
@@ -328,6 +337,34 @@ export default function Home() {
     setDamagePhotos({});
   }
 
+  function submitWeeklyControl() {
+    if (!controlReady) return;
+    const generatedIssues: Issue[] = [];
+    const baseId = Date.now();
+    const addWorkshopIssue = (title: string, detail?: string) => generatedIssues.push({
+      id: baseId + generatedIssues.length,
+      vehicle: selectedVehicle.plate,
+      title,
+      meta: `Contrôle hebdo · Aujourd'hui · Lucas M.${detail ? ` · ${detail}` : ""}`,
+      urgent: false,
+      done: false,
+      source: "weekly",
+    });
+
+    if (checks.frontTyres === "problem") addWorkshopIssue("Problème sur les pneus avant", checkNotes.frontTyres?.trim());
+    if (checks.rearTyres === "problem") addWorkshopIssue("Problème sur les pneus arrière", checkNotes.rearTyres?.trim());
+    if (checks.parkingBrake === "problem") addWorkshopIssue("Problème de frein à main", checkNotes.parkingBrake?.trim());
+    if (Number(padThickness.front) <= 3) addWorkshopIssue(`Plaquettes avant à ${padThickness.front} mm`, "Seuil atelier atteint");
+    if (Number(padThickness.rear) <= 3) addWorkshopIssue(`Plaquettes arrière à ${padThickness.rear} mm`, "Seuil atelier atteint");
+
+    if (generatedIssues.length) setIssues([...generatedIssues, ...issues]);
+    showToast(generatedIssues.length
+      ? `Contrôle enregistré · ${generatedIssues.length} tâche${generatedIssues.length > 1 ? "s" : ""} envoyée${generatedIssues.length > 1 ? "s" : ""} à l'atelier`
+      : "Contrôle hebdomadaire enregistré");
+    resetWeeklyControl();
+    setScreen("home");
+  }
+
   function resetProblemReport() {
     setReportCategory("");
     setReportMileage(String(selectedVehicle.km));
@@ -347,6 +384,7 @@ export default function Home() {
         urgent: false,
         done: false,
         photos: [...reportPhotos],
+        source: "report",
       },
       ...issues,
     ]);
@@ -661,7 +699,7 @@ export default function Home() {
                       {issues.filter((issue) => issue.vehicle === selectedVehicle.plate).map((issue) => (
                         <article className="history-entry report-entry" key={`issue-${issue.id}`}>
                           <span className="history-symbol report">!</span>
-                          <div><span className="history-type">Signalement · {issue.done ? "Fait" : "À faire"}</span><h3>{issue.title}</h3><p>{issue.meta}</p>{issue.photos && issue.photos.length > 0 && <div className="history-photos">{issue.photos.map((photo, index) => <img key={`${photo.name}-${index}`} src={photo.url} alt={`Photo du signalement ${index + 1}`} />)}</div>}</div>
+                          <div><span className="history-type">{issue.source === "weekly" ? "Contrôle hebdo" : "Signalement"} · {issue.done ? "Fait" : "À faire"}</span><h3>{issue.title}</h3><p>{issue.meta}</p>{issue.photos && issue.photos.length > 0 && <div className="history-photos">{issue.photos.map((photo, index) => <img key={`${photo.name}-${index}`} src={photo.url} alt={`Photo du signalement ${index + 1}`} />)}</div>}</div>
                         </article>
                       ))}
                       {!hideWeeklyControls && weeklyChecks.filter((check) => check.done && check.vehicle === selectedVehicle.plate).map((check) => (
@@ -778,7 +816,7 @@ export default function Home() {
 
                   <div className="control-summary"><span className={completedCheckCount === totalCheckCount ? "complete" : ""}>{completedCheckCount}/{totalCheckCount} renseignés</span><span className={checkIssueCount ? "issue" : ""}>{checkIssueCount} anomalie{checkIssueCount > 1 ? "s" : ""}</span></div>
                   {!controlReady && completedCheckCount >= totalCheckCount - 1 && <p className="validation-hint">Complétez les champs obligatoires, les descriptions d'anomalies et les quatre photos avant de terminer.</p>}
-                  <button className="primary-button" disabled={!controlReady} onClick={() => { showToast("Contrôle hebdomadaire enregistré"); resetWeeklyControl(); setScreen("home"); }}>Terminer le contrôle</button>
+                  <button className="primary-button" disabled={!controlReady} onClick={submitWeeklyControl}>Terminer le contrôle</button>
                 </section>
               </div>
             )}
@@ -811,19 +849,27 @@ export default function Home() {
             {screen === "workshop" && (
               <div className="screen-stack">
                 <section className="workshop-lead"><div><p className="eyebrow">Vue mécanicien</p><h2>Atelier</h2><p>Problèmes, échéances et disponibilités au même endroit.</p></div><button className="primary-button compact-primary" onClick={() => openWorkForm({ kind: "new", vehicleId: selectedVehicle.id })}>＋ Enregistrer une opération</button></section>
-                <div className="metric-grid"><Metric value={String(issues.filter((i) => !i.done).length)} label="Problèmes à faire" tone="orange" /><Metric value={String(fleetVehicles.filter((vehicle) => vehicle.status === "HS").length)} label="Véhicules HS" tone="red" /><Metric value={String(pendingMaintenance.length)} label="Opérations prévues" tone="blue" /><Metric value={String(Object.values(operations).flat().filter((operation) => operation.done).length)} label="Opérations faites" tone="green" /></div>
+                <div className="metric-grid"><Metric value={String(queueTodoCount)} label="Tâches à faire" tone="orange" /><Metric value={String(fleetVehicles.filter((vehicle) => vehicle.status === "HS").length)} label="Véhicules HS" tone="red" /><Metric value={String(pendingMaintenance.length)} label="Opérations prévues" tone="blue" /><Metric value={String(Object.values(operations).flat().filter((operation) => operation.done).length)} label="Opérations faites" tone="green" /></div>
                 <section className="panel workshop-issues">
-                  <div className="section-title"><div><p className="eyebrow">File de travail</p><h2>Problèmes signalés</h2></div><div className="filters compact-filters"><button className={issueFilter === "todo" ? "active" : ""} onClick={() => setIssueFilter("todo")}>À faire</button><button className={issueFilter === "done" ? "active" : ""} onClick={() => setIssueFilter("done")}>Fait</button></div></div>
+                  <div className="section-title"><div><p className="eyebrow">File de travail</p><h2>Travaux à traiter</h2><p className="section-note">Signalements, pneus/freins du contrôle hebdo et opérations périodiques.</p></div><div className="filters compact-filters"><button className={issueFilter === "todo" ? "active" : ""} onClick={() => setIssueFilter("todo")}>À faire</button><button className={issueFilter === "done" ? "active" : ""} onClick={() => setIssueFilter("done")}>Fait</button></div></div>
                   <div className="issue-list">
                     {issues.filter((issue) => issueFilter === "done" ? issue.done : !issue.done).map((issue) => (
                       <article className={`issue-card ${issue.done ? "done" : ""}`} key={issue.id}>
                         <span className={`issue-indicator ${issue.urgent ? "urgent" : ""}`}>{issue.done ? "✓" : issue.urgent ? "!" : "·"}</span>
-                        <div className="issue-main"><div className="issue-meta"><button className="plate small plate-button" onClick={() => { const vehicle = fleetVehicles.find((item) => item.plate === issue.vehicle); if (vehicle) selectVehicle(vehicle); }}>{issue.vehicle}</button>{issue.urgent && <span className="urgent-label">Urgent</span>}</div><h3>{issue.title}</h3><p>{issue.meta}</p>{issue.photos && issue.photos.length > 0 && <div className="issue-photo-strip">{issue.photos.map((photo, index) => <img key={`${photo.name}-${index}`} src={photo.url} alt={`Photo ${index + 1} du signalement`} />)}<span>{issue.photos.length} photo{issue.photos.length > 1 ? "s" : ""}</span></div>}</div>
+                        <div className="issue-main"><div className="issue-meta"><button className="plate small plate-button" onClick={() => { const vehicle = fleetVehicles.find((item) => item.plate === issue.vehicle); if (vehicle) selectVehicle(vehicle); }}>{issue.vehicle}</button>{issue.source === "weekly" && <span className="source-label">Contrôle hebdo</span>}{issue.urgent && <span className="urgent-label">Urgent</span>}</div><h3>{issue.title}</h3><p>{issue.meta}</p>{issue.photos && issue.photos.length > 0 && <div className="issue-photo-strip">{issue.photos.map((photo, index) => <img key={`${photo.name}-${index}`} src={photo.url} alt={`Photo ${index + 1} du signalement`} />)}<span>{issue.photos.length} photo{issue.photos.length > 1 ? "s" : ""}</span></div>}</div>
                         <span className={`task-state ${issue.done ? "done" : ""}`}>{issue.done ? "Fait" : "À faire"}</span>
                         {!issue.done && <button className="outline-button" onClick={() => { const vehicle = fleetVehicles.find((item) => item.plate === issue.vehicle) ?? selectedVehicle; openWorkForm({ kind: "issue", vehicleId: vehicle.id, issueId: issue.id }, issue.title); }}>Clôturer</button>}
                       </article>
                     ))}
-                    {issues.every((issue) => issueFilter === "done" ? !issue.done : issue.done) && <p className="empty-state">Aucun problème dans cette liste.</p>}
+                    {(issueFilter === "todo" ? periodicPending : periodicCompleted).map((operation) => { const vehicle = fleetVehicles.find((item) => item.id === operation.vehicleId) ?? selectedVehicle; return (
+                      <article className={`issue-card periodic-task ${operation.done ? "done" : ""}`} key={`periodic-${operation.id}`}>
+                        <span className="issue-indicator periodic">↻</span>
+                        <div className="issue-main"><div className="issue-meta"><button className="plate small plate-button" onClick={() => selectVehicle(vehicle)}>{vehicle.plate}</button><span className="source-label periodic">Périodique</span></div><h3>{operation.title}</h3><p>{operation.detail}</p></div>
+                        <span className={`task-state ${operation.done ? "done" : ""}`}>{operation.done ? "Fait" : "À faire"}</span>
+                        {!operation.done && <button className="outline-button" onClick={() => openWorkForm({ kind: "operation", vehicleId: vehicle.id, operationId: operation.id }, operation.title)}>Réaliser</button>}
+                      </article>
+                    ); })}
+                    {!queueHasItems && <p className="empty-state">Aucune tâche dans cette liste.</p>}
                   </div>
                 </section>
                 <div className="dashboard-columns workshop-overview">
