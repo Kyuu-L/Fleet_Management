@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 
 type Role = "salarie" | "mecano" | "chef";
 type Screen =
@@ -33,6 +33,11 @@ type Operation = {
   completedBy?: string;
 };
 
+type PhotoPreview = {
+  name: string;
+  url: string;
+};
+
 const vehicles: Vehicle[] = [
   { id: 1, plate: "GA-218-NK", label: "Peugeot Boxer", km: 82460, status: "Disponible", maintenance: "Vidange dans 2 540 km", accent: "#194c74" },
   { id: 2, plate: "FH-704-LP", label: "Renault Master", km: 116220, status: "Disponible", maintenance: "Contrôle technique dans 18 j", accent: "#0f766e" },
@@ -55,12 +60,16 @@ const roleInitials: Record<Role, string> = {
 };
 
 const checkItems = [
-  "État des pneus",
-  "Feux et clignotants",
-  "Niveaux et témoins",
-  "Carrosserie et rétroviseurs",
-  "Équipements de sécurité",
-  "Propreté de l'habitacle",
+  { id: "tyres", category: "Extérieur", title: "Pneus et roues", hint: "Usure, déformation, pression visuelle et écrous" },
+  { id: "lights", category: "Extérieur", title: "Feux et signalisation", hint: "Croisement, route, stop, clignotants et warnings" },
+  { id: "body", category: "Extérieur", title: "Carrosserie et vitrages", hint: "Chocs, pare-brise, rétroviseurs et plaques" },
+  { id: "leaks", category: "Extérieur", title: "Absence de fuite", hint: "Aucune trace anormale sous le véhicule" },
+  { id: "dashboard", category: "Conduite", title: "Voyants du tableau de bord", hint: "Aucun voyant rouge ou message d'alerte" },
+  { id: "brakes", category: "Conduite", title: "Freinage et direction", hint: "Réponse normale, sans bruit ni vibration" },
+  { id: "wipers", category: "Conduite", title: "Essuie-glaces et lave-glace", hint: "Balais, projection et visibilité corrects" },
+  { id: "levels", category: "Entretien", title: "Niveaux accessibles", hint: "Huile, refroidissement, lave-glace et AdBlue" },
+  { id: "safety", category: "Sécurité", title: "Équipements obligatoires", hint: "Gilet, triangle, trousse et extincteur si prévu" },
+  { id: "cabin", category: "Habitacle", title: "Habitacle et chargement", hint: "Ceintures, propreté, portes et arrimage" },
 ];
 
 const issueSeed = [
@@ -145,21 +154,55 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [mileage, setMileage] = useState("82460");
   const [checks, setChecks] = useState<Record<string, "ok" | "issue">>({});
+  const [checkNotes, setCheckNotes] = useState<Record<string, string>>({});
+  const [checkPhotos, setCheckPhotos] = useState<Record<string, PhotoPreview[]>>({});
+  const [reportPhotos, setReportPhotos] = useState<PhotoPreview[]>([]);
   const [issues, setIssues] = useState(issueSeed);
   const [operations, setOperations] = useState(operationsSeed);
   const [toast, setToast] = useState("");
 
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId) ?? vehicles[0];
   const selectedOperations = operations[selectedVehicle.id] ?? [];
+  const completedCheckCount = checkItems.filter((item) => checks[item.id]).length;
+  const checkIssueCount = checkItems.filter((item) => checks[item.id] === "issue").length;
+  const controlReady = completedCheckCount === checkItems.length
+    && checkItems.every((item) => checks[item.id] !== "issue" || Boolean(checkNotes[item.id]?.trim()));
   const filteredVehicles = useMemo(() => {
     const query = search.toLowerCase().trim();
     if (!query) return vehicles;
     return vehicles.filter((vehicle) => `${vehicle.plate} ${vehicle.label}`.toLowerCase().includes(query));
   }, [search]);
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, [screen, loggedIn, role]);
+
   function showToast(message: string) {
     setToast(message);
     window.setTimeout(() => setToast(""), 2600);
+  }
+
+  async function readPhotoFiles(files: FileList | null, limit: number) {
+    const selected = Array.from(files ?? []).slice(0, limit);
+    return Promise.all(selected.map((file) => new Promise<PhotoPreview>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve({ name: file.name, url: String(reader.result) });
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    })));
+  }
+
+  async function handleReportPhotos(event: ChangeEvent<HTMLInputElement>) {
+    const availableSlots = Math.max(0, 4 - reportPhotos.length);
+    const newPhotos = await readPhotoFiles(event.target.files, availableSlots);
+    setReportPhotos([...reportPhotos, ...newPhotos]);
+    event.target.value = "";
+  }
+
+  async function handleCheckPhoto(itemId: string, event: ChangeEvent<HTMLInputElement>) {
+    const newPhotos = await readPhotoFiles(event.target.files, 1);
+    if (newPhotos.length) setCheckPhotos({ ...checkPhotos, [itemId]: newPhotos });
+    event.target.value = "";
   }
 
   function login(event: FormEvent) {
@@ -408,13 +451,28 @@ export default function Home() {
               <div className="narrow-screen wide-form">
                 <button className="back-link" onClick={() => setScreen("home")}>← Retour</button>
                 <section className="form-card">
-                  <div className="form-head"><div><p className="eyebrow">Contrôle hebdomadaire · {selectedVehicle.plate}</p><h2>Vérification du véhicule</h2><p className="muted">Indiquez l'état de chaque point.</p></div><span className="progress-ring">{Object.keys(checks).length}<small>/6</small></span></div>
+                  <div className="form-head"><div><p className="eyebrow">Contrôle hebdomadaire · {selectedVehicle.plate}</p><h2>Vérification du véhicule</h2><p className="muted">Contrôlez les éléments avant la fin de la semaine. Toute anomalie doit être précisée.</p></div><span className="progress-ring">{completedCheckCount}<small>/{checkItems.length}</small></span></div>
+                  <div className="control-instructions"><span>i</span><p><strong>Comment procéder ?</strong> Faites le tour du véhicule, démarrez-le puis vérifiez chaque point. Une photo peut être jointe à toute anomalie.</p></div>
                   <div className="check-list">
                     {checkItems.map((item, index) => (
-                      <div className="check-row" key={item}><span className="check-number">{index + 1}</span><strong>{item}</strong><div className="segmented"><button className={checks[item] === "ok" ? "active ok" : ""} onClick={() => setChecks({ ...checks, [item]: "ok" })}>✓ Conforme</button><button className={checks[item] === "issue" ? "active issue" : ""} onClick={() => setChecks({ ...checks, [item]: "issue" })}>! Problème</button></div></div>
+                      <div className={`check-row detailed ${checks[item.id] === "issue" ? "has-issue" : ""}`} key={item.id}>
+                        <span className="check-number">{index + 1}</span>
+                        <div className="check-copy"><span>{item.category}</span><strong>{item.title}</strong><small>{item.hint}</small></div>
+                        <div className="segmented"><button className={checks[item.id] === "ok" ? "active ok" : ""} onClick={() => setChecks({ ...checks, [item.id]: "ok" })}>✓ Conforme</button><button className={checks[item.id] === "issue" ? "active issue" : ""} onClick={() => setChecks({ ...checks, [item.id]: "issue" })}>! Problème</button></div>
+                        {checks[item.id] === "issue" && (
+                          <div className="check-issue-fields">
+                            <label><span>Précisez le problème *</span><textarea rows={2} value={checkNotes[item.id] ?? ""} onChange={(event) => setCheckNotes({ ...checkNotes, [item.id]: event.target.value })} placeholder="Décrivez ce qui ne va pas…" /></label>
+                            <label className="mini-photo-button" htmlFor={`check-photo-${item.id}`}><span>＋</span>{checkPhotos[item.id]?.length ? "Remplacer la photo" : "Ajouter une photo"}</label>
+                            <input className="visually-hidden" id={`check-photo-${item.id}`} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(event) => handleCheckPhoto(item.id, event)} />
+                            {checkPhotos[item.id]?.[0] && <div className="mini-photo-preview"><img src={checkPhotos[item.id][0].url} alt={`Photo pour ${item.title}`} /><span>{checkPhotos[item.id][0].name}</span><button aria-label={`Supprimer la photo de ${item.title}`} onClick={() => setCheckPhotos({ ...checkPhotos, [item.id]: [] })}>×</button></div>}
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
-                  <button className="primary-button" disabled={Object.keys(checks).length < checkItems.length} onClick={() => { showToast("Contrôle enregistré"); setScreen("home"); }}>Terminer le contrôle</button>
+                  <div className="control-summary"><span className={completedCheckCount === checkItems.length ? "complete" : ""}>{completedCheckCount}/{checkItems.length} vérifiés</span><span className={checkIssueCount ? "issue" : ""}>{checkIssueCount} problème{checkIssueCount > 1 ? "s" : ""}</span></div>
+                  {!controlReady && completedCheckCount === checkItems.length && checkIssueCount > 0 && <p className="validation-hint">Ajoutez une description pour chaque problème avant de terminer.</p>}
+                  <button className="primary-button" disabled={!controlReady} onClick={() => { showToast("Contrôle hebdomadaire enregistré"); setChecks({}); setCheckNotes({}); setCheckPhotos({}); setScreen("home"); }}>Terminer le contrôle</button>
                 </section>
               </div>
             )}
@@ -427,8 +485,10 @@ export default function Home() {
                   <div className="form-grid"><label><span className="field-label">Catégorie</span><select defaultValue=""><option value="" disabled>Choisir une catégorie</option><option>Mécanique</option><option>Pneumatiques</option><option>Éclairage</option><option>Carrosserie</option><option>Autre</option></select></label><label><span className="field-label">Kilométrage</span><div className="unit-input compact"><input defaultValue={selectedVehicle.km} inputMode="numeric" /><span>km</span></div></label></div>
                   <fieldset><legend className="field-label">Niveau d'urgence</legend><div className="urgency-picker"><label><input type="radio" name="urgency" defaultChecked /><span>Normal<small>À vérifier</small></span></label><label><input type="radio" name="urgency" /><span>Urgent<small>Risque immédiat</small></span></label></div></fieldset>
                   <label><span className="field-label">Description</span><textarea placeholder="Décrivez ce que vous avez constaté…" rows={4} /></label>
-                  <button className="photo-drop" type="button"><span>＋</span><strong>Ajouter une photo</strong><small>Facultatif · JPG ou PNG</small></button>
-                  <div className="form-actions"><button className="secondary-button" onClick={() => setScreen("home")}>Annuler</button><button className="primary-button" onClick={() => { showToast("Problème transmis à l'atelier"); setScreen("home"); }}>Envoyer le signalement</button></div>
+                  <label className={`photo-drop ${reportPhotos.length ? "has-files" : ""}`} htmlFor="issue-photos"><span>＋</span><strong>{reportPhotos.length ? "Ajouter une autre photo" : "Ajouter des photos"}</strong><small>Jusqu'à 4 photos · JPG, PNG ou WebP</small></label>
+                  <input className="visually-hidden" id="issue-photos" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={handleReportPhotos} />
+                  {reportPhotos.length > 0 && <div className="photo-preview-grid">{reportPhotos.map((photo, index) => <figure key={`${photo.name}-${index}`}><img src={photo.url} alt={`Photo jointe ${index + 1}`} /><figcaption>{photo.name}</figcaption><button aria-label={`Supprimer ${photo.name}`} onClick={() => setReportPhotos(reportPhotos.filter((_, photoIndex) => photoIndex !== index))}>×</button></figure>)}</div>}
+                  <div className="form-actions"><button className="secondary-button" onClick={() => { setReportPhotos([]); setScreen("home"); }}>Annuler</button><button className="primary-button" onClick={() => { showToast(`Problème transmis${reportPhotos.length ? ` avec ${reportPhotos.length} photo${reportPhotos.length > 1 ? "s" : ""}` : ""}`); setReportPhotos([]); setScreen("home"); }}>Envoyer le signalement</button></div>
                 </section>
               </div>
             )}
