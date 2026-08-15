@@ -42,6 +42,14 @@ type OperationRow = {
   dueDate: string | null;
 };
 
+type ActivityRow = {
+  id: string;
+  kind: "issue" | "mileage" | "weekly" | "operation";
+  plate: string;
+  person: string;
+  occurredAt: string;
+};
+
 function dateLabel(value: string, includeTime = false) {
   const date = new Date(value);
   const datePart = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" }).format(date);
@@ -57,10 +65,19 @@ function mondayIso() {
   return date.toISOString();
 }
 
+function activityTime(value: string) {
+  const date = new Date(`${value.replace(" ", "T").replace(/Z$/, "")}Z`);
+  return new Intl.DateTimeFormat("fr-FR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Paris",
+  }).format(date);
+}
+
 export async function readApplicationState() {
   await ensureDemoData();
   const db = getD1();
-  const [vehicleResult, issueResult, operationResult, photoResult, employeeResult, controlResult] = await Promise.all([
+  const [vehicleResult, issueResult, operationResult, photoResult, employeeResult, controlResult, activityResult] = await Promise.all([
     db.prepare("SELECT id, plate, label, km, status, maintenance, image FROM vehicles ORDER BY id").all<VehicleRow>(),
     db.prepare(`
       SELECT i.id, v.plate, i.category, i.title, i.description, i.mileage, i.urgent, i.status, i.source,
@@ -86,6 +103,30 @@ export async function readApplicationState() {
       WHERE wc.created_at >= ?
       ORDER BY wc.created_at DESC
     `).bind(mondayIso()).all<{ userId: number; plate: string; createdAt: string }>(),
+    db.prepare(`
+      SELECT 'issue-' || i.id AS id, 'issue' AS kind, v.plate, u.name AS person,
+             datetime(i.created_at) AS occurredAt
+      FROM issues i
+      JOIN vehicles v ON v.id = i.vehicle_id
+      JOIN users u ON u.id = i.created_by
+      WHERE i.source = 'report'
+      UNION ALL
+      SELECT 'mileage-' || ml.id AS id,
+             CASE WHEN ml.source = 'operation' THEN 'operation' ELSE 'mileage' END AS kind,
+             v.plate, u.name AS person, datetime(ml.created_at) AS occurredAt
+      FROM mileage_logs ml
+      JOIN vehicles v ON v.id = ml.vehicle_id
+      JOIN users u ON u.id = ml.user_id
+      WHERE ml.source IN ('manual', 'operation')
+      UNION ALL
+      SELECT 'weekly-' || wc.id AS id, 'weekly' AS kind, v.plate, u.name AS person,
+             datetime(wc.created_at) AS occurredAt
+      FROM weekly_controls wc
+      JOIN vehicles v ON v.id = wc.vehicle_id
+      JOIN users u ON u.id = wc.user_id
+      ORDER BY occurredAt DESC
+      LIMIT 12
+    `).all<ActivityRow>(),
   ]);
 
   const issuePhotos = new Map<number, Array<{ name: string; url: string }>>();
@@ -142,5 +183,20 @@ export async function readApplicationState() {
     };
   });
 
-  return { vehicles: vehicleResult.results, issues, operations, weeklyChecks };
+  const activityTitles: Record<ActivityRow["kind"], string> = {
+    issue: "Problème signalé",
+    mileage: "Kilométrage relevé",
+    weekly: "Contrôle terminé",
+    operation: "Opération atelier réalisée",
+  };
+  const recentActivity = activityResult.results.map((activity) => ({
+    id: activity.id,
+    kind: activity.kind,
+    title: activityTitles[activity.kind],
+    person: activity.person,
+    plate: activity.plate,
+    time: activityTime(activity.occurredAt),
+  }));
+
+  return { vehicles: vehicleResult.results, issues, operations, weeklyChecks, recentActivity };
 }

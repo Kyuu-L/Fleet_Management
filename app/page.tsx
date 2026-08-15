@@ -69,6 +69,15 @@ type Issue = {
   source?: "report" | "weekly";
 };
 
+type RecentActivity = {
+  id: string;
+  kind: "issue" | "mileage" | "weekly" | "operation";
+  title: string;
+  person: string;
+  plate: string;
+  time: string;
+};
+
 type WorkEntry = {
   kind: "operation" | "issue" | "new";
   vehicleId: number;
@@ -279,6 +288,7 @@ export default function Home() {
   const [issues, setIssues] = useState(issueSeed);
   const [operations, setOperations] = useState(operationsSeed);
   const [weeklyChecks, setWeeklyChecks] = useState(weeklyChecksSeed);
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [issueFilter, setIssueFilter] = useState<"todo" | "done">("todo");
   const [hideWeeklyControls, setHideWeeklyControls] = useState(false);
   const [workEntry, setWorkEntry] = useState<WorkEntry | null>(null);
@@ -360,11 +370,12 @@ export default function Home() {
   }
 
   async function loadState() {
-    const data = await apiRequest<{ vehicles: Vehicle[]; issues: Issue[]; operations: Record<number, Operation[]>; weeklyChecks: WeeklyCheck[] }>("/api/state");
+    const data = await apiRequest<{ vehicles: Vehicle[]; issues: Issue[]; operations: Record<number, Operation[]>; weeklyChecks: WeeklyCheck[]; recentActivity: RecentActivity[] }>("/api/state");
     setFleetVehicles(data.vehicles);
     setIssues(data.issues);
     setOperations(data.operations);
     setWeeklyChecks(data.weeklyChecks);
+    setRecentActivity(data.recentActivity);
     const selected = data.vehicles.find((vehicle) => vehicle.id === selectedVehicleId) ?? data.vehicles[0];
     if (selected) {
       setSelectedVehicleId(selected.id);
@@ -1046,7 +1057,16 @@ export default function Home() {
                 </section>
                 <div className="dashboard-columns">
                   <section className="panel"><div className="section-title"><div><p className="eyebrow">Attention requise</p><h2>Véhicules HS</h2></div><button className="text-button" onClick={() => setScreen("vehicles")}>Voir le parc →</button></div><div className="hs-list">{fleetVehicles.filter((vehicle) => vehicle.status === "HS").map((vehicle) => <article key={vehicle.id}><VehicleMark vehicle={vehicle} compact /><div><span className="plate small">{vehicle.plate}</span><strong>{vehicle.label}</strong><small>{vehicle.maintenance}</small></div><StatusPill status="HS" /></article>)}</div></section>
-                  <section className="panel"><div className="section-title"><div><p className="eyebrow">Aujourd'hui</p><h2>Activité récente</h2></div></div><div className="activity-list"><article><span className="activity-icon orange">!</span><div><strong>Problème signalé</strong><p>Lucas · GJ-391-RT</p></div><time>07:42</time></article><article><span className="activity-icon blue">123</span><div><strong>Kilométrage relevé</strong><p>Sarah · FH-704-LP</p></div><time>07:18</time></article><article><span className="activity-icon green">✓</span><div><strong>Contrôle terminé</strong><p>Mehdi · FT-866-CV</p></div><time>06:54</time></article></div></section>
+                  <section className="panel"><div className="section-title"><div><p className="eyebrow">Journal du parc</p><h2>Activité récente</h2></div></div><div className="activity-list">{recentActivity.map((activity) => {
+                    const presentation = activity.kind === "issue"
+                      ? { tone: "orange", icon: "!" }
+                      : activity.kind === "mileage"
+                        ? { tone: "blue", icon: "123" }
+                        : activity.kind === "operation"
+                          ? { tone: "purple", icon: "↻" }
+                          : { tone: "green", icon: "✓" };
+                    return <article key={activity.id}><span className={`activity-icon ${presentation.tone}`}>{presentation.icon}</span><div><strong>{activity.title}</strong><p>{activity.person} · {activity.plate}</p></div><time>{activity.time}</time></article>;
+                  })}{recentActivity.length === 0 && <p className="empty-state">Aucune activité enregistrée.</p>}</div></section>
                 </div>
               </div>
             )}

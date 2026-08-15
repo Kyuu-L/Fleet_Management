@@ -56,3 +56,13 @@ test("connects vehicle filters and vehicle-level issue closure", async () => {
   assert.match(page, /pending-issue-/);
   assert.match(page, />Clôturer</);
 });
+
+test("builds recent activity from every fleet workflow", async () => {
+  const state = await readFile(new URL("lib/server/state.ts", root), "utf8");
+  for (const kind of ["issue", "mileage", "weekly", "operation"]) {
+    assert.match(state, new RegExp(`${kind}:`));
+  }
+  assert.match(state, /mileage_logs/);
+  assert.match(state, /weekly_controls/);
+  assert.match(state, /Opération atelier réalisée/);
+});
