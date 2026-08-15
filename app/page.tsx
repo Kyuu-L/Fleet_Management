@@ -38,6 +38,22 @@ type PhotoPreview = {
   url: string;
 };
 
+type CheckChoice = {
+  value: string;
+  label: string;
+  tone: "ok" | "adjusted" | "issue";
+  issue?: boolean;
+  needsNote?: boolean;
+};
+
+type CheckItem = {
+  id: string;
+  category: string;
+  title: string;
+  hint: string;
+  choices: CheckChoice[];
+};
+
 const vehicles: Vehicle[] = [
   { id: 1, plate: "GA-218-NK", label: "Peugeot Boxer", km: 82460, status: "Disponible", maintenance: "Vidange dans 2 540 km", accent: "#194c74" },
   { id: 2, plate: "FH-704-LP", label: "Renault Master", km: 116220, status: "Disponible", maintenance: "Contrôle technique dans 18 j", accent: "#0f766e" },
@@ -59,18 +75,39 @@ const roleInitials: Record<Role, string> = {
   chef: "AD",
 };
 
-const checkItems = [
-  { id: "tyres", category: "Extérieur", title: "Pneus et roues", hint: "Usure, déformation, pression visuelle et écrous" },
-  { id: "lights", category: "Extérieur", title: "Feux et signalisation", hint: "Croisement, route, stop, clignotants et warnings" },
-  { id: "body", category: "Extérieur", title: "Carrosserie et vitrages", hint: "Chocs, pare-brise, rétroviseurs et plaques" },
-  { id: "leaks", category: "Extérieur", title: "Absence de fuite", hint: "Aucune trace anormale sous le véhicule" },
-  { id: "dashboard", category: "Conduite", title: "Voyants du tableau de bord", hint: "Aucun voyant rouge ou message d'alerte" },
-  { id: "brakes", category: "Conduite", title: "Freinage et direction", hint: "Réponse normale, sans bruit ni vibration" },
-  { id: "wipers", category: "Conduite", title: "Essuie-glaces et lave-glace", hint: "Balais, projection et visibilité corrects" },
-  { id: "levels", category: "Entretien", title: "Niveaux accessibles", hint: "Huile, refroidissement, lave-glace et AdBlue" },
-  { id: "safety", category: "Sécurité", title: "Équipements obligatoires", hint: "Gilet, triangle, trousse et extincteur si prévu" },
-  { id: "cabin", category: "Habitacle", title: "Habitacle et chargement", hint: "Ceintures, propreté, portes et arrimage" },
+const okProblemChoices: CheckChoice[] = [
+  { value: "ok", label: "OK", tone: "ok" },
+  { value: "problem", label: "Problème", tone: "issue", issue: true, needsNote: true },
 ];
+
+const okAdjustedChoices: CheckChoice[] = [
+  { value: "ok", label: "OK", tone: "ok" },
+  { value: "adjusted", label: "Ajusté", tone: "adjusted" },
+];
+
+const checkItems: CheckItem[] = [
+  { id: "tyrePressure", category: "Pneus", title: "Pression des pneus", hint: "Contrôlez et ajustez la pression si nécessaire", choices: okAdjustedChoices },
+  { id: "frontTyres", category: "Pneus", title: "État des pneus avant", hint: "Usure, coupure, hernie ou corps étranger", choices: okProblemChoices },
+  { id: "rearTyres", category: "Pneus", title: "État des pneus arrière", hint: "Usure, coupure, hernie ou corps étranger", choices: okProblemChoices },
+  { id: "lights", category: "Équipements", title: "Feux", hint: "Position, croisement, route, stop, clignotants et warnings", choices: okProblemChoices },
+  { id: "mirrors", category: "Équipements", title: "Rétroviseurs", hint: "Présence, fixation, réglage et état des miroirs", choices: okProblemChoices },
+  { id: "parkingBrake", category: "Freinage", title: "Frein à main", hint: "Course et maintien du véhicule", choices: okProblemChoices },
+  { id: "dashboard", category: "Conduite", title: "Voyants du tableau de bord", hint: "Aucun voyant d'alerte après démarrage", choices: okProblemChoices },
+  { id: "oil", category: "Niveaux", title: "Niveau d'huile", hint: "Niveau vérifié sur sol plat", choices: okAdjustedChoices },
+  { id: "coolant", category: "Niveaux", title: "Liquide de refroidissement", hint: "Niveau entre les repères mini et maxi", choices: okAdjustedChoices },
+  { id: "brakeFluid", category: "Niveaux", title: "Liquide de frein", hint: "Niveau entre les repères mini et maxi", choices: okAdjustedChoices },
+  { id: "washerFluid", category: "Niveaux", title: "Liquide lave-glace", hint: "Réservoir suffisamment rempli", choices: okAdjustedChoices },
+  { id: "technicalInspection", category: "Conformité", title: "Contrôle technique à jour", hint: "Vérifiez la date figurant sur le procès-verbal", choices: [{ value: "yes", label: "Oui", tone: "ok" }, { value: "no", label: "Non", tone: "issue", issue: true }] },
+];
+
+const damagePhotoSlots = [
+  { id: "front", label: "Vue avant" },
+  { id: "rear", label: "Vue arrière" },
+  { id: "left", label: "Côté gauche" },
+  { id: "right", label: "Côté droit" },
+];
+
+const totalCheckCount = checkItems.length + 5;
 
 const issueSeed = [
   { id: 1, vehicle: "GJ-391-RT", title: "Bruit important au freinage", meta: "Signalé aujourd'hui à 07:42 · Lucas M.", urgent: true, done: false },
@@ -153,9 +190,13 @@ export default function Home() {
   const [selectedVehicleId, setSelectedVehicleId] = useState(1);
   const [search, setSearch] = useState("");
   const [mileage, setMileage] = useState("82460");
-  const [checks, setChecks] = useState<Record<string, "ok" | "issue">>({});
+  const [checks, setChecks] = useState<Record<string, string>>({});
   const [checkNotes, setCheckNotes] = useState<Record<string, string>>({});
-  const [checkPhotos, setCheckPhotos] = useState<Record<string, PhotoPreview[]>>({});
+  const [padThickness, setPadThickness] = useState<Record<"front" | "rear", string>>({ front: "", rear: "" });
+  const [licenceNumber, setLicenceNumber] = useState("");
+  const [damageState, setDamageState] = useState("");
+  const [damageNotes, setDamageNotes] = useState("");
+  const [damagePhotos, setDamagePhotos] = useState<Record<string, PhotoPreview>>({});
   const [reportPhotos, setReportPhotos] = useState<PhotoPreview[]>([]);
   const [issues, setIssues] = useState(issueSeed);
   const [operations, setOperations] = useState(operationsSeed);
@@ -163,10 +204,25 @@ export default function Home() {
 
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId) ?? vehicles[0];
   const selectedOperations = operations[selectedVehicle.id] ?? [];
-  const completedCheckCount = checkItems.filter((item) => checks[item.id]).length;
-  const checkIssueCount = checkItems.filter((item) => checks[item.id] === "issue").length;
-  const controlReady = completedCheckCount === checkItems.length
-    && checkItems.every((item) => checks[item.id] !== "issue" || Boolean(checkNotes[item.id]?.trim()));
+  const simpleCheckCount = checkItems.filter((item) => checks[item.id]).length;
+  const licenceComplete = Boolean(checks.licence) && (checks.licence === "no" || Boolean(licenceNumber.trim()));
+  const damageComplete = Boolean(damageState)
+    && damagePhotoSlots.every((slot) => damagePhotos[slot.id])
+    && (damageState !== "problem" || Boolean(damageNotes.trim()));
+  const completedCheckCount = simpleCheckCount
+    + (mileage.trim() ? 1 : 0)
+    + (padThickness.front ? 1 : 0)
+    + (padThickness.rear ? 1 : 0)
+    + (licenceComplete ? 1 : 0)
+    + (damageComplete ? 1 : 0);
+  const checkIssueCount = checkItems.filter((item) => item.choices.find((choice) => choice.value === checks[item.id])?.issue).length
+    + (checks.licence === "no" ? 1 : 0)
+    + (damageState === "problem" ? 1 : 0);
+  const issueNotesComplete = checkItems.every((item) => {
+    const choice = item.choices.find((option) => option.value === checks[item.id]);
+    return !choice?.needsNote || Boolean(checkNotes[item.id]?.trim());
+  });
+  const controlReady = completedCheckCount === totalCheckCount && issueNotesComplete;
   const filteredVehicles = useMemo(() => {
     const query = search.toLowerCase().trim();
     if (!query) return vehicles;
@@ -199,10 +255,20 @@ export default function Home() {
     event.target.value = "";
   }
 
-  async function handleCheckPhoto(itemId: string, event: ChangeEvent<HTMLInputElement>) {
+  async function handleDamagePhoto(slotId: string, event: ChangeEvent<HTMLInputElement>) {
     const newPhotos = await readPhotoFiles(event.target.files, 1);
-    if (newPhotos.length) setCheckPhotos({ ...checkPhotos, [itemId]: newPhotos });
+    if (newPhotos.length) setDamagePhotos({ ...damagePhotos, [slotId]: newPhotos[0] });
     event.target.value = "";
+  }
+
+  function resetWeeklyControl() {
+    setChecks({});
+    setCheckNotes({});
+    setPadThickness({ front: "", rear: "" });
+    setLicenceNumber("");
+    setDamageState("");
+    setDamageNotes("");
+    setDamagePhotos({});
   }
 
   function login(event: FormEvent) {
@@ -451,28 +517,86 @@ export default function Home() {
               <div className="narrow-screen wide-form">
                 <button className="back-link" onClick={() => setScreen("home")}>← Retour</button>
                 <section className="form-card">
-                  <div className="form-head"><div><p className="eyebrow">Contrôle hebdomadaire · {selectedVehicle.plate}</p><h2>Vérification du véhicule</h2><p className="muted">Contrôlez les éléments avant la fin de la semaine. Toute anomalie doit être précisée.</p></div><span className="progress-ring">{completedCheckCount}<small>/{checkItems.length}</small></span></div>
-                  <div className="control-instructions"><span>i</span><p><strong>Comment procéder ?</strong> Faites le tour du véhicule, démarrez-le puis vérifiez chaque point. Une photo peut être jointe à toute anomalie.</p></div>
+                  <div className="form-head"><div><p className="eyebrow">Contrôle hebdomadaire · {selectedVehicle.plate}</p><h2>Vérification du véhicule</h2><p className="muted">Renseignez chaque mesure et chaque état. Les quatre photos extérieures sont obligatoires.</p></div><span className="progress-ring">{completedCheckCount}<small>/{totalCheckCount}</small></span></div>
+                  <div className="control-instructions"><span>i</span><p><strong>Comment procéder ?</strong> Relevez le kilométrage, faites le tour du véhicule puis démarrez-le. Précisez toute anomalie avant de terminer.</p></div>
+
+                  <div className="control-section-heading"><span>01</span><div><strong>Relevé</strong><small>Kilométrage affiché au tableau de bord</small></div></div>
+                  <div className="control-km-field">
+                    <label className="field-label" htmlFor="weekly-mileage">Kilométrage *</label>
+                    <div className="unit-input"><input id="weekly-mileage" inputMode="numeric" value={mileage} onChange={(event) => setMileage(event.target.value.replace(/\D/g, ""))} /><span>km</span></div>
+                  </div>
+
+                  <div className="control-section-heading"><span>02</span><div><strong>Pneus et freinage</strong><small>État visuel et mesures des plaquettes</small></div></div>
                   <div className="check-list">
-                    {checkItems.map((item, index) => (
-                      <div className={`check-row detailed ${checks[item.id] === "issue" ? "has-issue" : ""}`} key={item.id}>
-                        <span className="check-number">{index + 1}</span>
+                    {checkItems.slice(0, 3).map((item, index) => {
+                      const selectedChoice = item.choices.find((choice) => choice.value === checks[item.id]);
+                      return <div className={`check-row detailed ${selectedChoice?.issue ? "has-issue" : ""}`} key={item.id}>
+                        <span className="check-number">{index + 2}</span>
                         <div className="check-copy"><span>{item.category}</span><strong>{item.title}</strong><small>{item.hint}</small></div>
-                        <div className="segmented"><button className={checks[item.id] === "ok" ? "active ok" : ""} onClick={() => setChecks({ ...checks, [item.id]: "ok" })}>✓ Conforme</button><button className={checks[item.id] === "issue" ? "active issue" : ""} onClick={() => setChecks({ ...checks, [item.id]: "issue" })}>! Problème</button></div>
-                        {checks[item.id] === "issue" && (
-                          <div className="check-issue-fields">
-                            <label><span>Précisez le problème *</span><textarea rows={2} value={checkNotes[item.id] ?? ""} onChange={(event) => setCheckNotes({ ...checkNotes, [item.id]: event.target.value })} placeholder="Décrivez ce qui ne va pas…" /></label>
-                            <label className="mini-photo-button" htmlFor={`check-photo-${item.id}`}><span>＋</span>{checkPhotos[item.id]?.length ? "Remplacer la photo" : "Ajouter une photo"}</label>
-                            <input className="visually-hidden" id={`check-photo-${item.id}`} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(event) => handleCheckPhoto(item.id, event)} />
-                            {checkPhotos[item.id]?.[0] && <div className="mini-photo-preview"><img src={checkPhotos[item.id][0].url} alt={`Photo pour ${item.title}`} /><span>{checkPhotos[item.id][0].name}</span><button aria-label={`Supprimer la photo de ${item.title}`} onClick={() => setCheckPhotos({ ...checkPhotos, [item.id]: [] })}>×</button></div>}
-                          </div>
-                        )}
+                        <div className="segmented">{item.choices.map((choice) => <button type="button" key={choice.value} className={checks[item.id] === choice.value ? `active ${choice.tone}` : ""} onClick={() => setChecks({ ...checks, [item.id]: choice.value })}>{choice.label}</button>)}</div>
+                        {selectedChoice?.needsNote && <div className="check-issue-fields"><label><span>Précisez le problème *</span><textarea rows={2} value={checkNotes[item.id] ?? ""} onChange={(event) => setCheckNotes({ ...checkNotes, [item.id]: event.target.value })} placeholder="Décrivez ce qui ne va pas…" /></label></div>}
+                      </div>;
+                    })}
+                    {(["front", "rear"] as const).map((axle, index) => (
+                      <div className="check-row detailed brake-measure" key={axle}>
+                        <span className="check-number">{index + 5}</span>
+                        <div className="check-copy"><span>Freinage</span><strong>Plaquettes {axle === "front" ? "avant" : "arrière"}</strong><small>Mesurez l'épaisseur restante entre 0 et 12 mm</small></div>
+                        <div className={`range-field ${padThickness[axle] ? "completed" : ""}`}>
+                          <output>{padThickness[axle] || "—"}<small> mm</small></output>
+                          <input aria-label={`Épaisseur des plaquettes ${axle === "front" ? "avant" : "arrière"}`} type="range" min="0" max="12" step="1" value={padThickness[axle] || "6"} onChange={(event) => setPadThickness({ ...padThickness, [axle]: event.target.value })} />
+                          <div><span>0 mm</span><span>12 mm</span></div>
+                          {!padThickness[axle] && <small>Déplacez le curseur pour renseigner la mesure.</small>}
+                        </div>
                       </div>
                     ))}
                   </div>
-                  <div className="control-summary"><span className={completedCheckCount === checkItems.length ? "complete" : ""}>{completedCheckCount}/{checkItems.length} vérifiés</span><span className={checkIssueCount ? "issue" : ""}>{checkIssueCount} problème{checkIssueCount > 1 ? "s" : ""}</span></div>
-                  {!controlReady && completedCheckCount === checkItems.length && checkIssueCount > 0 && <p className="validation-hint">Ajoutez une description pour chaque problème avant de terminer.</p>}
-                  <button className="primary-button" disabled={!controlReady} onClick={() => { showToast("Contrôle hebdomadaire enregistré"); setChecks({}); setCheckNotes({}); setCheckPhotos({}); setScreen("home"); }}>Terminer le contrôle</button>
+
+                  <div className="control-section-heading"><span>03</span><div><strong>Équipements et niveaux</strong><small>Fonctionnement, voyants et liquides</small></div></div>
+                  <div className="check-list">
+                    {checkItems.slice(3, 11).map((item, index) => {
+                      const selectedChoice = item.choices.find((choice) => choice.value === checks[item.id]);
+                      return <div className={`check-row detailed ${selectedChoice?.issue ? "has-issue" : ""}`} key={item.id}>
+                        <span className="check-number">{index + 7}</span>
+                        <div className="check-copy"><span>{item.category}</span><strong>{item.title}</strong><small>{item.hint}</small></div>
+                        <div className="segmented">{item.choices.map((choice) => <button type="button" key={choice.value} className={checks[item.id] === choice.value ? `active ${choice.tone}` : ""} onClick={() => setChecks({ ...checks, [item.id]: choice.value })}>{choice.label}</button>)}</div>
+                        {selectedChoice?.needsNote && <div className="check-issue-fields"><label><span>Précisez le problème *</span><textarea rows={2} value={checkNotes[item.id] ?? ""} onChange={(event) => setCheckNotes({ ...checkNotes, [item.id]: event.target.value })} placeholder="Décrivez ce qui ne va pas…" /></label></div>}
+                      </div>;
+                    })}
+                  </div>
+
+                  <div className="control-section-heading"><span>04</span><div><strong>Conformité et dégâts</strong><small>Documents du véhicule et quatre vues extérieures</small></div></div>
+                  <div className="check-list compliance-list">
+                    {checkItems.slice(11).map((item) => {
+                      const selectedChoice = item.choices.find((choice) => choice.value === checks[item.id]);
+                      return <div className={`check-row detailed ${selectedChoice?.issue ? "has-issue" : ""}`} key={item.id}>
+                        <span className="check-number">15</span>
+                        <div className="check-copy"><span>{item.category}</span><strong>{item.title}</strong><small>{item.hint}</small></div>
+                        <div className="segmented">{item.choices.map((choice) => <button type="button" key={choice.value} className={checks[item.id] === choice.value ? `active ${choice.tone}` : ""} onClick={() => setChecks({ ...checks, [item.id]: choice.value })}>{choice.label}</button>)}</div>
+                      </div>;
+                    })}
+                    <div className={`check-row detailed ${checks.licence === "no" ? "has-issue" : ""}`}>
+                      <span className="check-number">16</span>
+                      <div className="check-copy"><span>Conformité</span><strong>Licence présente</strong><small>Vérifiez la présence du document dans le véhicule</small></div>
+                      <div className="segmented"><button type="button" className={checks.licence === "yes" ? "active ok" : ""} onClick={() => setChecks({ ...checks, licence: "yes" })}>Oui</button><button type="button" className={checks.licence === "no" ? "active issue" : ""} onClick={() => { setChecks({ ...checks, licence: "no" }); setLicenceNumber(""); }}>Non</button></div>
+                      {checks.licence === "yes" && <label className="licence-field"><span>Numéro de licence *</span><input value={licenceNumber} onChange={(event) => setLicenceNumber(event.target.value.toUpperCase())} placeholder="Ex. LIC-2026-0048" /></label>}
+                    </div>
+                    <div className={`damage-control ${damageState === "problem" ? "has-issue" : ""}`}>
+                      <div className="damage-control-head"><span className="check-number">17</span><div className="check-copy"><span>Carrosserie</span><strong>Dégâts</strong><small>Photographiez obligatoirement les quatre faces du véhicule</small></div><div className="segmented"><button type="button" className={damageState === "ok" ? "active ok" : ""} onClick={() => setDamageState("ok")}>Aucun nouveau dégât</button><button type="button" className={damageState === "problem" ? "active issue" : ""} onClick={() => setDamageState("problem")}>Dégât constaté</button></div></div>
+                      {damageState === "problem" && <label className="damage-note"><span>Décrivez le ou les dégâts *</span><textarea rows={3} value={damageNotes} onChange={(event) => setDamageNotes(event.target.value)} placeholder="Emplacement, taille, circonstance si connue…" /></label>}
+                      <div className="damage-photo-grid">{damagePhotoSlots.map((slot) => {
+                        const photo = damagePhotos[slot.id];
+                        return <div className={`damage-photo-slot ${photo ? "filled" : ""}`} key={slot.id}>
+                          <input className="visually-hidden" id={`damage-photo-${slot.id}`} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(event) => handleDamagePhoto(slot.id, event)} />
+                          {photo ? <><img src={photo.url} alt={slot.label} /><span>{slot.label}<small>Photo ajoutée</small></span><label htmlFor={`damage-photo-${slot.id}`}>Remplacer</label></> : <label htmlFor={`damage-photo-${slot.id}`}><span>＋</span><strong>{slot.label}</strong><small>Photo obligatoire</small></label>}
+                        </div>;
+                      })}</div>
+                      <p className="photo-requirement"><strong>{Object.keys(damagePhotos).length}/4 photos</strong>{Object.keys(damagePhotos).length === 4 ? " · dossier complet" : " · encore requises pour valider"}</p>
+                    </div>
+                  </div>
+
+                  <div className="control-summary"><span className={completedCheckCount === totalCheckCount ? "complete" : ""}>{completedCheckCount}/{totalCheckCount} renseignés</span><span className={checkIssueCount ? "issue" : ""}>{checkIssueCount} anomalie{checkIssueCount > 1 ? "s" : ""}</span></div>
+                  {!controlReady && completedCheckCount >= totalCheckCount - 1 && <p className="validation-hint">Complétez les champs obligatoires, les descriptions d'anomalies et les quatre photos avant de terminer.</p>}
+                  <button className="primary-button" disabled={!controlReady} onClick={() => { showToast("Contrôle hebdomadaire enregistré"); resetWeeklyControl(); setScreen("home"); }}>Terminer le contrôle</button>
                 </section>
               </div>
             )}
