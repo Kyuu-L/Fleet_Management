@@ -24,6 +24,15 @@ type Vehicle = {
   accent: string;
 };
 
+type Operation = {
+  id: string;
+  title: string;
+  category: string;
+  detail: string;
+  done: boolean;
+  completedBy?: string;
+};
+
 const vehicles: Vehicle[] = [
   { id: 1, plate: "GA-218-NK", label: "Peugeot Boxer", km: 82460, status: "Disponible", maintenance: "Vidange dans 2 540 km", accent: "#194c74" },
   { id: 2, plate: "FH-704-LP", label: "Renault Master", km: 116220, status: "Disponible", maintenance: "Contrôle technique dans 18 j", accent: "#0f766e" },
@@ -60,6 +69,51 @@ const issueSeed = [
   { id: 3, vehicle: "GA-218-NK", title: "Éclairage arrière droit", meta: "Traité le 14 août · Thomas B.", urgent: false, done: true },
 ];
 
+const operationsSeed: Record<number, Operation[]> = {
+  1: [
+    { id: "1-1", title: "Vidange moteur", category: "Entretien", detail: "Prévue à 85 000 km · reste 2 540 km", done: false },
+    { id: "1-2", title: "Contrôle technique", category: "Réglementaire", detail: "À réaliser avant le 12 septembre 2026", done: false },
+    { id: "1-3", title: "Ampoule arrière droite", category: "Éclairage", detail: "Réalisée le 14 août à 82 210 km", done: true, completedBy: "Thomas Bernard" },
+    { id: "1-4", title: "Remplacement des pneus avant", category: "Pneumatiques", detail: "Réalisé le 22 juin à 78 430 km", done: true, completedBy: "Thomas Bernard" },
+  ],
+  2: [
+    { id: "2-1", title: "Diagnostiquer le voyant moteur", category: "Signalement", detail: "Signalé le 14 août par Sarah D.", done: false },
+    { id: "2-2", title: "Contrôle technique", category: "Réglementaire", detail: "À réaliser avant le 2 septembre 2026", done: false },
+    { id: "2-3", title: "Révision complète", category: "Entretien", detail: "Réalisée le 18 juillet à 111 870 km", done: true, completedBy: "Marc Petit" },
+  ],
+  3: [
+    { id: "3-1", title: "Contrôler le système de freinage", category: "Urgent", detail: "Véhicule HS · signalé aujourd'hui à 07:42", done: false },
+    { id: "3-2", title: "Remplacement des plaquettes arrière", category: "Freinage", detail: "Réalisé le 4 avril à 38 920 km", done: true, completedBy: "Thomas Bernard" },
+    { id: "3-3", title: "Vidange moteur", category: "Entretien", detail: "Réalisée le 8 février à 30 170 km", done: true, completedBy: "Marc Petit" },
+  ],
+  4: [
+    { id: "4-1", title: "Permutation des pneumatiques", category: "Pneumatiques", detail: "À prévoir avant 100 000 km", done: false },
+    { id: "4-2", title: "Vidange moteur", category: "Entretien", detail: "Réalisée le 29 juillet à 96 420 km", done: true, completedBy: "Thomas Bernard" },
+    { id: "4-3", title: "Remplacement essuie-glaces", category: "Équipement", detail: "Réalisé le 3 juin à 89 110 km", done: true, completedBy: "Marc Petit" },
+  ],
+  5: [
+    { id: "5-1", title: "Vidange moteur", category: "Entretien", detail: "Prévue à 70 000 km · reste 6 510 km", done: false },
+    { id: "5-2", title: "Contrôle des niveaux", category: "Entretien", detail: "Réalisé le 11 août à 63 120 km", done: true, completedBy: "Thomas Bernard" },
+    { id: "5-3", title: "Remplacement batterie", category: "Électricité", detail: "Réalisé le 16 janvier à 51 840 km", done: true, completedBy: "Marc Petit" },
+  ],
+  6: [
+    { id: "6-1", title: "Finaliser le diagnostic moteur", category: "Urgent", detail: "Véhicule HS · diagnostic en cours", done: false },
+    { id: "6-2", title: "Contrôle technique dépassé", category: "Réglementaire", detail: "Échéance dépassée depuis le 8 août 2026", done: false },
+    { id: "6-3", title: "Remplacement courroie accessoires", category: "Mécanique", detail: "Réalisé le 20 mai à 128 400 km", done: true, completedBy: "Thomas Bernard" },
+  ],
+};
+
+const weeklyChecks = [
+  { name: "Lucas Martin", initials: "LM", vehicle: "GA-218-NK", done: true, detail: "Lundi à 07:16" },
+  { name: "Sarah Dupont", initials: "SD", vehicle: "FH-704-LP", done: true, detail: "Mardi à 06:58" },
+  { name: "Mehdi Laurent", initials: "ML", vehicle: "FT-866-CV", done: true, detail: "Mercredi à 07:24" },
+  { name: "Nina Robert", initials: "NR", vehicle: "GN-143-BD", done: true, detail: "Jeudi à 08:03" },
+  { name: "Julien Morel", initials: "JM", vehicle: "—", done: false, detail: "Pas encore réalisé" },
+  { name: "Emma Garcia", initials: "EG", vehicle: "—", done: false, detail: "Pas encore réalisé" },
+  { name: "Hugo Leroy", initials: "HL", vehicle: "—", done: false, detail: "Pas encore réalisé" },
+  { name: "Chloé Michel", initials: "CM", vehicle: "—", done: false, detail: "Pas encore réalisé" },
+];
+
 function formatKm(value: number) {
   return `${new Intl.NumberFormat("fr-FR").format(value)} km`;
 }
@@ -92,9 +146,11 @@ export default function Home() {
   const [mileage, setMileage] = useState("82460");
   const [checks, setChecks] = useState<Record<string, "ok" | "issue">>({});
   const [issues, setIssues] = useState(issueSeed);
+  const [operations, setOperations] = useState(operationsSeed);
   const [toast, setToast] = useState("");
 
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId) ?? vehicles[0];
+  const selectedOperations = operations[selectedVehicle.id] ?? [];
   const filteredVehicles = useMemo(() => {
     const query = search.toLowerCase().trim();
     if (!query) return vehicles;
@@ -120,8 +176,24 @@ export default function Home() {
   function selectVehicle(vehicle: Vehicle) {
     setSelectedVehicleId(vehicle.id);
     setMileage(String(vehicle.km));
-    setScreen("home");
-    showToast(`${vehicle.plate} est maintenant affiché par défaut`);
+    if (role === "salarie") {
+      setScreen("home");
+      showToast(`${vehicle.plate} est maintenant affiché par défaut`);
+    } else {
+      setScreen("vehicle");
+    }
+  }
+
+  function completeOperation(operationId: string) {
+    setOperations({
+      ...operations,
+      [selectedVehicle.id]: selectedOperations.map((operation) =>
+        operation.id === operationId
+          ? { ...operation, done: true, detail: `Réalisée aujourd'hui à ${formatKm(selectedVehicle.km)}`, completedBy: role === "chef" ? "Alice Dubois" : "Thomas Bernard" }
+          : operation,
+      ),
+    });
+    showToast("Opération ajoutée à l'historique");
   }
 
   if (!loggedIn) {
@@ -237,14 +309,14 @@ export default function Home() {
                     <div className="vehicle-facts"><span><small>Kilométrage</small><strong>{formatKm(selectedVehicle.km)}</strong></span><span><small>Prochain entretien</small><strong>{selectedVehicle.maintenance}</strong></span></div>
                   </div>
                   <VehicleMark vehicle={selectedVehicle} />
-                  <button className="change-vehicle" onClick={() => setScreen("vehicles")}>Changer de véhicule <span>→</span></button>
+                  <button type="button" className="change-vehicle" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setScreen("vehicles"); }}>Changer de véhicule <span>→</span></button>
                 </section>
 
                 <section>
                   <div className="section-title"><div><p className="eyebrow">Actions rapides</p><h2>Que voulez-vous faire ?</h2></div></div>
                   <div className="quick-actions">
                     <button className="quick-card blue" onClick={() => setScreen("mileage")}><span className="action-icon">123</span><strong>Saisir le kilométrage</strong><small>Dernier relevé : aujourd'hui</small><i>→</i></button>
-                    <button className="quick-card green" onClick={() => setScreen("check")}><span className="action-icon">✓</span><strong>Faire un contrôle</strong><small>6 points à vérifier</small><i>→</i></button>
+                    <button className="quick-card green" onClick={() => setScreen("check")}><span className="action-icon">✓</span><strong>Contrôle hebdomadaire</strong><small>6 points à vérifier</small><i>→</i></button>
                     <button className="quick-card orange" onClick={() => setScreen("report")}><span className="action-icon">!</span><strong>Signaler un problème</strong><small>Photo facultative</small><i>→</i></button>
                   </div>
                 </section>
@@ -255,7 +327,7 @@ export default function Home() {
 
             {screen === "vehicles" && (
               <div className="screen-stack">
-                <section className="mobile-heading"><button className="back-button" onClick={() => setScreen("home")}>←</button><p className="eyebrow">25 utilitaires</p><h1>Choisir un véhicule</h1><p>Plusieurs salariés peuvent utiliser le même véhicule.</p></section>
+                <section className="mobile-heading"><button className="back-button" onClick={() => setScreen(role === "salarie" ? "home" : role === "mecano" ? "workshop" : "fleet")}>←</button><p className="eyebrow">25 utilitaires</p><h1>{role === "salarie" ? "Choisir un véhicule" : "Ouvrir une fiche véhicule"}</h1><p>{role === "salarie" ? "Plusieurs salariés peuvent utiliser le même véhicule." : "Consultez les opérations réalisées et celles qui restent à faire."}</p></section>
                 <div className="search-field"><span aria-hidden="true">⌕</span><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Plaque, marque ou modèle" aria-label="Rechercher un véhicule" /></div>
                 <div className="filters"><button className="active">Tous <span>25</span></button><button>Disponibles <span>23</span></button><button>HS <span>2</span></button></div>
                 <div className="vehicle-grid">
@@ -266,6 +338,54 @@ export default function Home() {
                       {vehicle.id === selectedVehicleId && <span className="selected-check">✓</span>}
                     </button>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {screen === "vehicle" && (
+              <div className="screen-stack">
+                <button className="back-link vehicle-back" onClick={() => setScreen("vehicles")}>← Retour aux véhicules</button>
+                <section className="vehicle-detail-hero">
+                  <div className="vehicle-detail-identity">
+                    <VehicleMark vehicle={selectedVehicle} />
+                    <div>
+                      <div className="vehicle-detail-status"><span className="plate small">{selectedVehicle.plate}</span><StatusPill status={selectedVehicle.status} /></div>
+                      <h2>{selectedVehicle.label}</h2>
+                      <p>Dernier kilométrage : <strong>{formatKm(selectedVehicle.km)}</strong></p>
+                    </div>
+                  </div>
+                  <div className="operation-counts">
+                    <span><strong>{selectedOperations.filter((operation) => !operation.done).length}</strong> à faire</span>
+                    <span><strong>{selectedOperations.filter((operation) => operation.done).length}</strong> réalisées</span>
+                  </div>
+                </section>
+
+                <div className="operations-layout">
+                  <section className="panel operations-panel pending">
+                    <div className="section-title"><div><p className="eyebrow">À traiter</p><h2>Opérations à faire</h2></div><span className="panel-count">{selectedOperations.filter((operation) => !operation.done).length}</span></div>
+                    <div className="operation-list">
+                      {selectedOperations.filter((operation) => !operation.done).map((operation) => (
+                        <article className="operation-row" key={operation.id}>
+                          <span className={`operation-symbol ${operation.category === "Urgent" ? "urgent" : ""}`}>!</span>
+                          <div><span className="operation-category">{operation.category}</span><h3>{operation.title}</h3><p>{operation.detail}</p></div>
+                          <button className="outline-button" onClick={() => completeOperation(operation.id)}>Marquer fait</button>
+                        </article>
+                      ))}
+                      {selectedOperations.every((operation) => operation.done) && <p className="empty-state">Aucune opération en attente sur ce véhicule.</p>}
+                    </div>
+                  </section>
+
+                  <section className="panel operations-panel history">
+                    <div className="section-title"><div><p className="eyebrow">Historique</p><h2>Opérations réalisées</h2></div><span className="panel-count done">{selectedOperations.filter((operation) => operation.done).length}</span></div>
+                    <div className="operation-list">
+                      {selectedOperations.filter((operation) => operation.done).map((operation) => (
+                        <article className="operation-row completed" key={operation.id}>
+                          <span className="operation-symbol done">✓</span>
+                          <div><span className="operation-category">{operation.category}</span><h3>{operation.title}</h3><p>{operation.detail}</p><small>Par {operation.completedBy}</small></div>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
                 </div>
               </div>
             )}
@@ -288,7 +408,7 @@ export default function Home() {
               <div className="narrow-screen wide-form">
                 <button className="back-link" onClick={() => setScreen("home")}>← Retour</button>
                 <section className="form-card">
-                  <div className="form-head"><div><p className="eyebrow">{selectedVehicle.plate}</p><h2>Contrôle rapide</h2><p className="muted">Indiquez l'état de chaque point.</p></div><span className="progress-ring">{Object.keys(checks).length}<small>/6</small></span></div>
+                  <div className="form-head"><div><p className="eyebrow">Contrôle hebdomadaire · {selectedVehicle.plate}</p><h2>Vérification du véhicule</h2><p className="muted">Indiquez l'état de chaque point.</p></div><span className="progress-ring">{Object.keys(checks).length}<small>/6</small></span></div>
                   <div className="check-list">
                     {checkItems.map((item, index) => (
                       <div className="check-row" key={item}><span className="check-number">{index + 1}</span><strong>{item}</strong><div className="segmented"><button className={checks[item] === "ok" ? "active ok" : ""} onClick={() => setChecks({ ...checks, [item]: "ok" })}>✓ Conforme</button><button className={checks[item] === "issue" ? "active issue" : ""} onClick={() => setChecks({ ...checks, [item]: "issue" })}>! Problème</button></div></div>
@@ -353,8 +473,24 @@ export default function Home() {
                 <section className="mobile-heading"><p className="eyebrow">Vue chef</p><h1>Vue du parc</h1><p>L'essentiel de la flotte en un coup d'œil.</p></section>
                 <div className="fleet-summary">
                   <div className="fleet-lead"><p className="eyebrow light-text">État du parc</p><strong>23<small>/25</small></strong><span>véhicules disponibles</span><div className="availability-bar"><i /></div></div>
-                  <div className="metric-grid chief-metrics"><Metric value="2" label="Véhicules HS" tone="red" /><Metric value="2" label="Problèmes à faire" tone="orange" /><Metric value="6" label="Entretiens à prévoir" tone="blue" /><Metric value="18" label="Relevés cette semaine" tone="green" /></div>
+                  <div className="metric-grid chief-metrics"><Metric value="2" label="Véhicules HS" tone="red" /><Metric value="2" label="Problèmes à faire" tone="orange" /><Metric value="6" label="Entretiens à prévoir" tone="blue" /><Metric value="4/8" label="Contrôles hebdo faits" tone="green" /></div>
                 </div>
+                <section className="panel weekly-panel">
+                  <div className="weekly-panel-head">
+                    <div><p className="eyebrow">Semaine du 10 au 16 août</p><h2>Contrôles hebdomadaires</h2><p>Suivi nominatif des salariés ayant réalisé leur contrôle.</p></div>
+                    <div className="weekly-progress"><strong>50%</strong><span><i /></span><small>4 contrôles sur 8</small></div>
+                  </div>
+                  <div className="weekly-grid">
+                    {weeklyChecks.map((person) => (
+                      <article className={`weekly-person ${person.done ? "checked" : "missing"}`} key={person.name}>
+                        <span className="person-avatar">{person.initials}</span>
+                        <div><strong>{person.name}</strong><p>{person.detail}</p></div>
+                        <span className="weekly-vehicle">{person.vehicle}</span>
+                        <span className="weekly-state">{person.done ? "✓ Fait" : "À faire"}</span>
+                      </article>
+                    ))}
+                  </div>
+                </section>
                 <div className="dashboard-columns">
                   <section className="panel"><div className="section-title"><div><p className="eyebrow">Attention requise</p><h2>Véhicules HS</h2></div><button className="text-button" onClick={() => setScreen("vehicles")}>Voir le parc →</button></div><div className="hs-list"><article><VehicleMark vehicle={vehicles[2]} compact /><div><span className="plate small">GJ-391-RT</span><strong>Citroën Jumpy</strong><small>Bruit important au freinage</small></div><StatusPill status="HS" /></article><article><VehicleMark vehicle={vehicles[5]} compact /><div><span className="plate small">GC-552-MZ</span><strong>Mercedes Sprinter</strong><small>Diagnostic en cours</small></div><StatusPill status="HS" /></article></div></section>
                   <section className="panel"><div className="section-title"><div><p className="eyebrow">Aujourd'hui</p><h2>Activité récente</h2></div></div><div className="activity-list"><article><span className="activity-icon orange">!</span><div><strong>Problème signalé</strong><p>Lucas · GJ-391-RT</p></div><time>07:42</time></article><article><span className="activity-icon blue">123</span><div><strong>Kilométrage relevé</strong><p>Sarah · FH-704-LP</p></div><time>07:18</time></article><article><span className="activity-icon green">✓</span><div><strong>Contrôle terminé</strong><p>Mehdi · FT-866-CV</p></div><time>06:54</time></article></div></section>
