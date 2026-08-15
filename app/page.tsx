@@ -22,6 +22,7 @@ type Vehicle = {
   status: "Disponible" | "HS";
   maintenance: string;
   accent: string;
+  shape: "boxer" | "master" | "jumpy" | "transit" | "trafic" | "sprinter";
 };
 
 type Operation = {
@@ -80,12 +81,12 @@ type CheckItem = {
 };
 
 const vehicles: Vehicle[] = [
-  { id: 1, plate: "GA-218-NK", label: "Peugeot Boxer", km: 82460, status: "Disponible", maintenance: "Vidange dans 2 540 km", accent: "#194c74" },
-  { id: 2, plate: "FH-704-LP", label: "Renault Master", km: 116220, status: "Disponible", maintenance: "Contrôle technique dans 18 j", accent: "#0f766e" },
-  { id: 3, plate: "GJ-391-RT", label: "Citroën Jumpy", km: 44710, status: "HS", maintenance: "Freinage à contrôler", accent: "#a33a2a" },
-  { id: 4, plate: "FT-866-CV", label: "Ford Transit", km: 98730, status: "Disponible", maintenance: "À jour", accent: "#5b5385" },
-  { id: 5, plate: "GN-143-BD", label: "Renault Trafic", km: 63490, status: "Disponible", maintenance: "Vidange dans 6 510 km", accent: "#94642d" },
-  { id: 6, plate: "GC-552-MZ", label: "Mercedes Sprinter", km: 137080, status: "HS", maintenance: "Diagnostic en cours", accent: "#6b7280" },
+  { id: 1, plate: "GA-218-NK", label: "Peugeot Boxer", km: 82460, status: "Disponible", maintenance: "Vidange dans 2 540 km", accent: "#194c74", shape: "boxer" },
+  { id: 2, plate: "FH-704-LP", label: "Renault Master", km: 116220, status: "Disponible", maintenance: "Contrôle technique dans 18 j", accent: "#0f766e", shape: "master" },
+  { id: 3, plate: "GJ-391-RT", label: "Citroën Jumpy", km: 44710, status: "HS", maintenance: "Freinage à contrôler", accent: "#a33a2a", shape: "jumpy" },
+  { id: 4, plate: "FT-866-CV", label: "Ford Transit", km: 98730, status: "Disponible", maintenance: "À jour", accent: "#5b5385", shape: "transit" },
+  { id: 5, plate: "GN-143-BD", label: "Renault Trafic", km: 63490, status: "Disponible", maintenance: "Vidange dans 6 510 km", accent: "#94642d", shape: "trafic" },
+  { id: 6, plate: "GC-552-MZ", label: "Mercedes Sprinter", km: 137080, status: "HS", maintenance: "Diagnostic en cours", accent: "#6b7280", shape: "sprinter" },
 ];
 
 const roleLabels: Record<Role, string> = {
@@ -208,8 +209,11 @@ function StatusPill({ status }: { status: Vehicle["status"] }) {
 
 function VehicleMark({ vehicle, compact = false }: { vehicle: Vehicle; compact?: boolean }) {
   return (
-    <div className={`vehicle-mark ${compact ? "compact" : ""}`} style={{ "--vehicle-accent": vehicle.accent } as React.CSSProperties} aria-hidden="true">
+    <div className={`vehicle-mark model-${vehicle.shape} ${compact ? "compact" : ""}`} style={{ "--vehicle-accent": vehicle.accent } as React.CSSProperties} aria-hidden="true">
+      <span className="vehicle-roof" />
       <span className="vehicle-windscreen" />
+      <span className="vehicle-grille" />
+      <span className="vehicle-badge" />
       <span className="vehicle-wheel left" />
       <span className="vehicle-wheel right" />
     </div>
