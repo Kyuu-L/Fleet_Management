@@ -3,6 +3,7 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 
 type Role = "salarie" | "mecano" | "chef";
+type AppUser = { id: number; name: string; initials: string; role: Role };
 type Screen =
   | "home"
   | "vehicles"
@@ -43,6 +44,15 @@ type Operation = {
 type PhotoPreview = {
   name: string;
   url: string;
+  file?: File;
+};
+
+type WeeklyCheck = {
+  name: string;
+  initials: string;
+  vehicle: string;
+  done: boolean;
+  detail: string;
 };
 
 type Issue = {
@@ -206,7 +216,7 @@ const operationsSeed: Record<number, Operation[]> = {
   ],
 };
 
-const weeklyChecks = [
+const weeklyChecksSeed: WeeklyCheck[] = [
   { name: "Lucas Martin", initials: "LM", vehicle: "GA-218-NK", done: true, detail: "Lundi à 07:16" },
   { name: "Sarah Dupont", initials: "SD", vehicle: "FH-704-LP", done: true, detail: "Mardi à 06:58" },
   { name: "Mehdi Laurent", initials: "ML", vehicle: "FT-866-CV", done: true, detail: "Mercredi à 07:24" },
@@ -239,8 +249,12 @@ function Metric({ value, label, tone = "ink" }: { value: string; label: string; 
 
 export default function Home() {
   const [loggedIn, setLoggedIn] = useState(false);
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [role, setRole] = useState<Role>("salarie");
   const [pin, setPin] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [initializing, setInitializing] = useState(true);
   const [screen, setScreen] = useState<Screen>("home");
   const [selectedVehicleId, setSelectedVehicleId] = useState(1);
   const [search, setSearch] = useState("");
@@ -260,6 +274,7 @@ export default function Home() {
   const [fleetVehicles, setFleetVehicles] = useState(vehicles);
   const [issues, setIssues] = useState(issueSeed);
   const [operations, setOperations] = useState(operationsSeed);
+  const [weeklyChecks, setWeeklyChecks] = useState(weeklyChecksSeed);
   const [issueFilter, setIssueFilter] = useState<"todo" | "done">("todo");
   const [hideWeeklyControls, setHideWeeklyControls] = useState(false);
   const [workEntry, setWorkEntry] = useState<WorkEntry | null>(null);
@@ -302,6 +317,8 @@ export default function Home() {
     vehicleOperations.filter((operation) => operation.done && (operation.recurrenceKm || operation.recurrenceMonths)).map((operation) => ({ ...operation, vehicleId: Number(vehicleId) })),
   );
   const queueTodoCount = issues.filter((issue) => !issue.done).length + periodicPending.length;
+  const completedWeeklyCount = weeklyChecks.filter((check) => check.done).length;
+  const weeklyCompletionPercent = weeklyChecks.length ? Math.round((completedWeeklyCount / weeklyChecks.length) * 100) : 0;
   const queueHasItems = issueFilter === "todo"
     ? issues.some((issue) => !issue.done) || periodicPending.length > 0
     : issues.some((issue) => issue.done) || periodicCompleted.length > 0;
@@ -310,6 +327,54 @@ export default function Home() {
     if (!query) return fleetVehicles;
     return fleetVehicles.filter((vehicle) => `${vehicle.plate} ${vehicle.label}`.toLowerCase().includes(query));
   }, [search, fleetVehicles]);
+
+  const allowedRoles = useMemo(() => {
+    if (!currentUser) return [role];
+    if (currentUser.role === "chef") return ["chef", "mecano", "salarie"] as Role[];
+    if (currentUser.role === "mecano") return ["mecano", "salarie"] as Role[];
+    return ["salarie"] as Role[];
+  }, [currentUser, role]);
+
+  async function apiRequest<T>(url: string, init?: RequestInit) {
+    const response = await fetch(url, init);
+    const data = await response.json().catch(() => ({})) as T & { error?: string };
+    if (!response.ok) throw new Error(data.error || "Une erreur est survenue.");
+    return data;
+  }
+
+  async function loadState() {
+    const data = await apiRequest<{ vehicles: Vehicle[]; issues: Issue[]; operations: Record<number, Operation[]>; weeklyChecks: WeeklyCheck[] }>("/api/state");
+    setFleetVehicles(data.vehicles);
+    setIssues(data.issues);
+    setOperations(data.operations);
+    setWeeklyChecks(data.weeklyChecks);
+    const selected = data.vehicles.find((vehicle) => vehicle.id === selectedVehicleId) ?? data.vehicles[0];
+    if (selected) {
+      setSelectedVehicleId(selected.id);
+      setMileage(String(selected.km));
+      setReportMileage(String(selected.km));
+    }
+  }
+
+  useEffect(() => {
+    let active = true;
+    void apiRequest<{ user: AppUser | null }>("/api/session")
+      .then(async ({ user }) => {
+        if (!active || !user) return;
+        setCurrentUser(user);
+        setRole(user.role);
+        await loadState();
+        if (active) {
+          setLoggedIn(true);
+          setScreen(user.role === "mecano" ? "workshop" : user.role === "chef" ? "fleet" : "home");
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => { if (active) setInitializing(false); });
+    return () => { active = false; };
+    // Session restoration only runs once when the application opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
@@ -324,7 +389,7 @@ export default function Home() {
     const selected = Array.from(files ?? []).slice(0, limit);
     return Promise.all(selected.map((file) => new Promise<PhotoPreview>((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve({ name: file.name, url: String(reader.result) });
+      reader.onload = () => resolve({ name: file.name, url: String(reader.result), file });
       reader.onerror = () => reject(reader.error);
       reader.readAsDataURL(file);
     })));
@@ -354,32 +419,38 @@ export default function Home() {
     setDamagePhotos({});
   }
 
-  function submitWeeklyControl() {
-    if (!controlReady) return;
-    const generatedIssues: Issue[] = [];
-    const baseId = Date.now();
-    const addWorkshopIssue = (title: string, detail?: string) => generatedIssues.push({
-      id: baseId + generatedIssues.length,
-      vehicle: selectedVehicle.plate,
-      title,
-      meta: `Contrôle hebdo · Aujourd'hui · Lucas M.${detail ? ` · ${detail}` : ""}`,
-      urgent: false,
-      done: false,
-      source: "weekly",
-    });
-
-    if (checks.frontTyres === "problem") addWorkshopIssue("Problème sur les pneus avant", checkNotes.frontTyres?.trim());
-    if (checks.rearTyres === "problem") addWorkshopIssue("Problème sur les pneus arrière", checkNotes.rearTyres?.trim());
-    if (checks.parkingBrake === "problem") addWorkshopIssue("Problème de frein à main", checkNotes.parkingBrake?.trim());
-    if (Number(padThickness.front) <= 3) addWorkshopIssue(`Plaquettes avant à ${padThickness.front} mm`, "Seuil atelier atteint");
-    if (Number(padThickness.rear) <= 3) addWorkshopIssue(`Plaquettes arrière à ${padThickness.rear} mm`, "Seuil atelier atteint");
-
-    if (generatedIssues.length) setIssues([...generatedIssues, ...issues]);
-    showToast(generatedIssues.length
-      ? `Contrôle enregistré · ${generatedIssues.length} tâche${generatedIssues.length > 1 ? "s" : ""} envoyée${generatedIssues.length > 1 ? "s" : ""} à l'atelier`
-      : "Contrôle hebdomadaire enregistré");
-    resetWeeklyControl();
-    setScreen("home");
+  async function submitWeeklyControl() {
+    if (!controlReady || saving) return;
+    setSaving(true);
+    try {
+      const form = new FormData();
+      form.append("payload", JSON.stringify({
+        vehicleId: selectedVehicle.id,
+        mileage: Number(mileage),
+        checks,
+        notes: checkNotes,
+        padThickness,
+        licenceNumber,
+        damageState,
+        damageNotes,
+        comment: controlComment,
+      }));
+      for (const slot of damagePhotoSlots) {
+        const photo = damagePhotos[slot.id];
+        if (photo?.file) form.append("photos", photo.file, `${slot.id}-${photo.name}`);
+      }
+      const result = await apiRequest<{ generatedTasks: number }>("/api/weekly-controls", { method: "POST", body: form });
+      await loadState();
+      showToast(result.generatedTasks
+        ? `Contrôle enregistré · ${result.generatedTasks} tâche${result.generatedTasks > 1 ? "s" : ""} envoyée${result.generatedTasks > 1 ? "s" : ""} à l'atelier`
+        : "Contrôle hebdomadaire enregistré");
+      resetWeeklyControl();
+      setScreen("home");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Contrôle impossible");
+    } finally {
+      setSaving(false);
+    }
   }
 
   function resetProblemReport() {
@@ -389,36 +460,73 @@ export default function Home() {
     setReportPhotos([]);
   }
 
-  function submitProblemReport() {
-    if (!reportReady) return;
-    const title = reportDescription.trim().split(/[.!?\n]/)[0].slice(0, 72) || reportCategory;
-    setIssues([
-      {
-        id: Date.now(),
-        vehicle: selectedVehicle.plate,
-        title,
-        meta: `Signalé à l'instant · Lucas M. · ${reportCategory}`,
-        urgent: false,
-        done: false,
-        photos: [...reportPhotos],
-        source: "report",
-      },
-      ...issues,
-    ]);
-    showToast(`Problème transmis${reportPhotos.length ? ` avec ${reportPhotos.length} photo${reportPhotos.length > 1 ? "s" : ""}` : ""}`);
-    resetProblemReport();
-    setScreen("home");
+  async function submitProblemReport() {
+    if (!reportReady || saving) return;
+    setSaving(true);
+    try {
+      const form = new FormData();
+      form.append("payload", JSON.stringify({ vehicleId: selectedVehicle.id, category: reportCategory, mileage: Number(reportMileage), description: reportDescription }));
+      for (const photo of reportPhotos) if (photo.file) form.append("photos", photo.file, photo.name);
+      const result = await apiRequest<{ photoCount: number }>("/api/issues", { method: "POST", body: form });
+      await loadState();
+      showToast(`Problème transmis${result.photoCount ? ` avec ${result.photoCount} photo${result.photoCount > 1 ? "s" : ""}` : ""}`);
+      resetProblemReport();
+      setScreen("home");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Signalement impossible");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function login(event: FormEvent) {
+  async function login(event: FormEvent) {
     event.preventDefault();
-    setLoggedIn(true);
-    setScreen(role === "mecano" ? "workshop" : role === "chef" ? "fleet" : "home");
+    if (saving) return;
+    setLoginError("");
+    setSaving(true);
+    try {
+      const { user } = await apiRequest<{ user: AppUser }>("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role, pin }) });
+      setCurrentUser(user);
+      setRole(user.role);
+      await loadState();
+      setLoggedIn(true);
+      setScreen(user.role === "mecano" ? "workshop" : user.role === "chef" ? "fleet" : "home");
+      setPin("");
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : "Connexion impossible.");
+    } finally {
+      setSaving(false);
+      setInitializing(false);
+    }
   }
 
   function switchRole(nextRole: Role) {
+    if (!allowedRoles.includes(nextRole)) return;
     setRole(nextRole);
     setScreen(nextRole === "mecano" ? "workshop" : nextRole === "chef" ? "fleet" : "home");
+  }
+
+  async function logout() {
+    await fetch("/api/session", { method: "DELETE" }).catch(() => undefined);
+    setCurrentUser(null);
+    setLoggedIn(false);
+    setRole("salarie");
+    setScreen("home");
+  }
+
+  async function submitMileage() {
+    if (!mileage.trim() || saving) return;
+    setSaving(true);
+    try {
+      await apiRequest("/api/mileage", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ vehicleId: selectedVehicle.id, mileage: Number(mileage) }) });
+      await loadState();
+      showToast("Kilométrage enregistré");
+      setScreen("home");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Enregistrement impossible");
+    } finally {
+      setSaving(false);
+    }
   }
 
   function selectVehicle(vehicle: Vehicle) {
@@ -459,64 +567,38 @@ export default function Home() {
     setWorkMileage(String(vehicle.km));
   }
 
-  function submitWorkEntry() {
-    if (!workEntry || !workReady) return;
-    const completedKm = Number(workMileage);
-    const completedDate = new Date();
-    const completedDateLabel = formatDateLabel(completedDate);
-    const currentOperations = operations[workEntry.vehicleId] ?? [];
-    let nextOperations = [...currentOperations];
-
-    if (workEntry.kind === "operation" && workEntry.operationId) {
-      const sourceOperation = currentOperations.find((operation) => operation.id === workEntry.operationId);
-      nextOperations = currentOperations.map((operation) => operation.id === workEntry.operationId
-        ? { ...operation, title: workTitle.trim(), done: true, detail: `Réalisée le ${completedDateLabel} à ${formatKm(completedKm)}`, completedBy: role === "chef" ? "Alice Dubois" : "Thomas Bernard", completedDate: completedDateLabel, completedKm, comment: workComment.trim() || undefined }
-        : operation);
-
-      if (sourceOperation?.recurrenceKm || sourceOperation?.recurrenceMonths) {
-        const nextDueKm = sourceOperation.recurrenceKm ? completedKm + sourceOperation.recurrenceKm : undefined;
-        const nextDueDate = sourceOperation.recurrenceMonths ? new Date(completedDate) : undefined;
-        if (nextDueDate && sourceOperation.recurrenceMonths) nextDueDate.setMonth(nextDueDate.getMonth() + sourceOperation.recurrenceMonths);
-        const dueDetail = nextDueKm
-          ? `Prévue à ${formatKm(nextDueKm)} · calculée depuis le kilométrage réalisé`
-          : `À réaliser avant le ${formatDateLabel(nextDueDate!)} · calculée depuis la date réalisée`;
-        nextOperations.push({
-          id: `${workEntry.vehicleId}-${Date.now()}-next`,
-          title: sourceOperation.title,
-          category: sourceOperation.category,
-          detail: dueDetail,
-          done: false,
-          recurrenceKm: sourceOperation.recurrenceKm,
-          recurrenceMonths: sourceOperation.recurrenceMonths,
-          dueKm: nextDueKm,
-          dueDate: nextDueDate?.toISOString().slice(0, 10),
-        });
-      }
-    } else {
-      nextOperations.unshift({
-        id: `${workEntry.vehicleId}-${Date.now()}-done`,
-        title: workTitle.trim(),
-        category: workEntry.kind === "issue" ? "Signalement" : "Intervention",
-        detail: `Réalisée le ${completedDateLabel} à ${formatKm(completedKm)}`,
-        done: true,
-        completedBy: role === "chef" ? "Alice Dubois" : "Thomas Bernard",
-        completedDate: completedDateLabel,
-        completedKm,
-        comment: workComment.trim() || undefined,
+  async function submitWorkEntry() {
+    if (!workEntry || !workReady || saving) return;
+    setSaving(true);
+    try {
+      await apiRequest("/api/operations/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...workEntry, title: workTitle, mileage: Number(workMileage), comment: workComment }),
       });
+      await loadState();
+      showToast("Opération enregistrée dans l'historique");
+      closeWorkForm();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Opération impossible");
+    } finally {
+      setSaving(false);
     }
-
-    setOperations({ ...operations, [workEntry.vehicleId]: nextOperations });
-    setFleetVehicles(fleetVehicles.map((vehicle) => vehicle.id === workEntry.vehicleId ? { ...vehicle, km: Math.max(vehicle.km, completedKm) } : vehicle));
-    if (workEntry.kind === "issue" && workEntry.issueId) setIssues(issues.map((issue) => issue.id === workEntry.issueId ? { ...issue, done: true } : issue));
-    showToast("Opération enregistrée dans l'historique");
-    closeWorkForm();
   }
 
-  function toggleVehicleStatus() {
+  async function toggleVehicleStatus() {
+    if (saving) return;
     const nextStatus: Vehicle["status"] = selectedVehicle.status === "HS" ? "Disponible" : "HS";
-    setFleetVehicles(fleetVehicles.map((vehicle) => vehicle.id === selectedVehicle.id ? { ...vehicle, status: nextStatus } : vehicle));
-    showToast(`${selectedVehicle.plate} passé en ${nextStatus}`);
+    setSaving(true);
+    try {
+      await apiRequest("/api/vehicles/status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ vehicleId: selectedVehicle.id, status: nextStatus }) });
+      await loadState();
+      showToast(`${selectedVehicle.plate} passé en ${nextStatus}`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Modification impossible");
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (!loggedIn) {
@@ -534,14 +616,14 @@ export default function Home() {
 
         <section className="login-panel">
           <form className="login-card" onSubmit={login}>
-            <div className="prototype-flag">Prototype interactif</div>
+            <div className="prototype-flag">MVP connecté</div>
             <p className="eyebrow">Bienvenue</p>
             <h2>Accéder à l'application</h2>
-            <p className="muted">Choisissez un profil de démonstration.</p>
+            <p className="muted">Choisissez votre profil de démonstration.</p>
 
             <div className="profile-picker" role="group" aria-label="Profil de démonstration">
               {(Object.keys(roleLabels) as Role[]).map((item) => (
-                <button type="button" key={item} className={role === item ? "active" : ""} onClick={() => setRole(item)}>
+                <button type="button" key={item} className={role === item ? "active" : ""} onClick={() => { setRole(item); setLoginError(""); }}>
                   <span className="avatar">{roleInitials[item]}</span>
                   <span><strong>{roleLabels[item]}</strong><small>{item === "salarie" ? "Terrain" : item === "mecano" ? "Atelier" : "Pilotage"}</small></span>
                 </button>
@@ -549,9 +631,10 @@ export default function Home() {
             </div>
 
             <label className="field-label" htmlFor="pin">Code PIN</label>
-            <input id="pin" className="pin-input" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} placeholder="••••" aria-describedby="pin-help" />
-            <p id="pin-help" className="field-help">Saisissez n'importe quel code pour visiter la maquette.</p>
-            <button className="primary-button login-button" type="submit">Se connecter <span aria-hidden="true">→</span></button>
+            <input id="pin" className="pin-input" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={pin} disabled={saving} onChange={(e) => { setPin(e.target.value.replace(/\D/g, "")); setLoginError(""); }} placeholder="••••" aria-describedby="pin-help" />
+            <p id="pin-help" className="field-help">Codes de démonstration : salarié 1111 · mécanicien 2222 · chef 3333.</p>
+            {loginError && <p className="validation-hint login-error">{loginError}</p>}
+            <button className="primary-button login-button" type="submit" disabled={initializing || saving || pin.length < 4}>{initializing ? "Vérification…" : saving ? "Connexion…" : "Se connecter"} <span aria-hidden="true">→</span></button>
           </form>
         </section>
       </main>
@@ -565,7 +648,7 @@ export default function Home() {
       : [{ key: "fleet", label: "Pilotage", icon: "▦" }, { key: "vehicles", label: "Parc", icon: "▣" }, { key: "workshop", label: "Atelier", icon: "⌁" }, { key: "maintenance", label: "Entretiens", icon: "◷" }];
 
   const titles: Record<Screen, string> = {
-    home: "Bonjour Lucas",
+    home: `Bonjour ${currentUser?.name.split(" ")[0] ?? "Lucas"}`,
     vehicles: "Choisir un véhicule",
     vehicle: "Fiche véhicule",
     mileage: "Nouveau kilométrage",
@@ -589,9 +672,9 @@ export default function Home() {
             ))}
           </nav>
           <div className="sidebar-foot">
-            <span className="avatar">{roleInitials[role]}</span>
-            <div><strong>{role === "salarie" ? "Lucas Martin" : role === "mecano" ? "Thomas Bernard" : "Alice Dubois"}</strong><small>{roleLabels[role]}</small></div>
-            <button className="logout" aria-label="Se déconnecter" onClick={() => setLoggedIn(false)}>↗</button>
+            <span className="avatar">{currentUser?.initials ?? roleInitials[role]}</span>
+            <div><strong>{currentUser?.name ?? "Utilisateur"}</strong><small>{roleLabels[currentUser?.role ?? role]}</small></div>
+            <button className="logout" aria-label="Se déconnecter" onClick={logout}>↗</button>
           </div>
         </aside>
 
@@ -604,25 +687,23 @@ export default function Home() {
             <div className="topbar-actions">
               <label className="demo-select">Voir comme
                 <select value={role} onChange={(e) => switchRole(e.target.value as Role)}>
-                  <option value="salarie">Salarié</option>
-                  <option value="mecano">Mécanicien</option>
-                  <option value="chef">Chef</option>
+                  {allowedRoles.map((allowedRole) => <option key={allowedRole} value={allowedRole}>{roleLabels[allowedRole]}</option>)}
                 </select>
               </label>
               <button className="notification-button" aria-label="Notifications" onClick={() => setScreen("maintenance")}><span>!</span><i /></button>
-              <span className="top-avatar">{roleInitials[role]}</span>
+              <span className="top-avatar">{currentUser?.initials ?? roleInitials[role]}</span>
             </div>
           </header>
 
           <div className="mobile-topbar">
             <div className="brand-lockup"><span className="brand-sign">F</span><span>Flotte</span></div>
-            <button className="role-chip" onClick={() => switchRole(role === "salarie" ? "mecano" : role === "mecano" ? "chef" : "salarie")}>{roleLabels[role]} · Démo</button>
+            <button className="role-chip" disabled={allowedRoles.length === 1} onClick={() => switchRole(allowedRoles[(allowedRoles.indexOf(role) + 1) % allowedRoles.length])}>{roleLabels[role]} · En ligne</button>
           </div>
 
           <div className="screen-area">
             {screen === "home" && (
               <div className="screen-stack">
-                <section className="mobile-heading"><p className="eyebrow">Samedi 15 août</p><h1>Bonjour Lucas</h1><p>Quel véhicule utilisez-vous aujourd'hui ?</p></section>
+                <section className="mobile-heading"><p className="eyebrow">Samedi 15 août</p><h1>Bonjour {currentUser?.name.split(" ")[0] ?? "Lucas"}</h1><p>Quel véhicule utilisez-vous aujourd'hui ?</p></section>
 
                 <section className="current-vehicle-card">
                   <div className="vehicle-card-copy">
@@ -639,7 +720,7 @@ export default function Home() {
                   <div className="section-title"><div><p className="eyebrow">Actions rapides</p><h2>Que voulez-vous faire ?</h2></div></div>
                   <div className="quick-actions">
                     <button className="quick-card blue" onClick={() => setScreen("mileage")}><span className="action-icon">123</span><strong>Saisir le kilométrage</strong><small>Dernier relevé : aujourd'hui</small><i>→</i></button>
-                    <button className="quick-card green" onClick={() => setScreen("check")}><span className="action-icon">✓</span><strong>Contrôle hebdomadaire</strong><small>6 points à vérifier</small><i>→</i></button>
+                    <button className="quick-card green" onClick={() => setScreen("check")}><span className="action-icon">✓</span><strong>Contrôle hebdomadaire</strong><small>17 points à vérifier</small><i>→</i></button>
                     <button className="quick-card orange" onClick={() => setScreen("report")}><span className="action-icon">!</span><strong>Signaler un problème</strong><small>Photo facultative</small><i>→</i></button>
                   </div>
                 </section>
@@ -650,9 +731,9 @@ export default function Home() {
 
             {screen === "vehicles" && (
               <div className="screen-stack">
-                <section className="mobile-heading"><button className="back-button" onClick={() => setScreen(role === "salarie" ? "home" : role === "mecano" ? "workshop" : "fleet")}>←</button><p className="eyebrow">25 utilitaires</p><h1>{role === "salarie" ? "Choisir un véhicule" : "Ouvrir une fiche véhicule"}</h1><p>{role === "salarie" ? "Plusieurs salariés peuvent utiliser le même véhicule." : "Consultez les opérations réalisées et celles qui restent à faire."}</p></section>
+                <section className="mobile-heading"><button className="back-button" onClick={() => setScreen(role === "salarie" ? "home" : role === "mecano" ? "workshop" : "fleet")}>←</button><p className="eyebrow">{fleetVehicles.length} utilitaires</p><h1>{role === "salarie" ? "Choisir un véhicule" : "Ouvrir une fiche véhicule"}</h1><p>{role === "salarie" ? "Plusieurs salariés peuvent utiliser le même véhicule." : "Consultez les opérations réalisées et celles qui restent à faire."}</p></section>
                 <div className="search-field"><span aria-hidden="true">⌕</span><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Plaque, marque ou modèle" aria-label="Rechercher un véhicule" /></div>
-                <div className="filters"><button className="active">Tous <span>25</span></button><button>Disponibles <span>23</span></button><button>HS <span>2</span></button></div>
+                <div className="filters"><button className="active">Tous <span>{fleetVehicles.length}</span></button><button>Disponibles <span>{fleetVehicles.filter((vehicle) => vehicle.status === "Disponible").length}</span></button><button>HS <span>{fleetVehicles.filter((vehicle) => vehicle.status === "HS").length}</span></button></div>
                 <div className="vehicle-grid">
                   {filteredVehicles.map((vehicle) => (
                     <button className={`vehicle-list-card ${vehicle.id === selectedVehicleId ? "selected" : ""}`} key={vehicle.id} onClick={() => selectVehicle(vehicle)}>
@@ -684,7 +765,7 @@ export default function Home() {
                     </div>
                     <div className="vehicle-action-buttons">
                       <button className="hero-outline-button" onClick={() => openWorkForm({ kind: "new", vehicleId: selectedVehicle.id })}>＋ Opération réalisée</button>
-                      <button className={`hero-status-button ${selectedVehicle.status === "HS" ? "available" : "danger"}`} onClick={toggleVehicleStatus}>{selectedVehicle.status === "HS" ? "Remettre disponible" : "Passer en HS"}</button>
+                      <button className={`hero-status-button ${selectedVehicle.status === "HS" ? "available" : "danger"}`} disabled={saving} onClick={toggleVehicleStatus}>{saving ? "Enregistrement…" : selectedVehicle.status === "HS" ? "Remettre disponible" : "Passer en HS"}</button>
                     </div>
                   </div>
                 </section>
@@ -740,7 +821,7 @@ export default function Home() {
                   <label className="field-label" htmlFor="mileage">Kilométrage actuel</label>
                   <div className="unit-input"><input id="mileage" inputMode="numeric" value={mileage} onChange={(e) => setMileage(e.target.value.replace(/\D/g, ""))} /><span>km</span></div>
                   <p className="field-help">Le relevé précédent est de {formatKm(selectedVehicle.km)}.</p>
-                  <button className="primary-button" onClick={() => { showToast("Kilométrage enregistré"); setScreen("home"); }}>Enregistrer le relevé</button>
+                  <button className="primary-button" disabled={saving || !mileage.trim()} onClick={submitMileage}>{saving ? "Enregistrement…" : "Enregistrer le relevé"}</button>
                 </section>
               </div>
             )}
@@ -833,7 +914,7 @@ export default function Home() {
 
                   <div className="control-summary"><span className={completedCheckCount === totalCheckCount ? "complete" : ""}>{completedCheckCount}/{totalCheckCount} renseignés</span><span className={checkIssueCount ? "issue" : ""}>{checkIssueCount} anomalie{checkIssueCount > 1 ? "s" : ""}</span></div>
                   {!controlReady && completedCheckCount >= totalCheckCount - 1 && <p className="validation-hint">Complétez les champs obligatoires, les descriptions d'anomalies et les quatre photos avant de terminer.</p>}
-                  <button className="primary-button" disabled={!controlReady} onClick={submitWeeklyControl}>Terminer le contrôle</button>
+                  <button className="primary-button" disabled={!controlReady || saving} onClick={submitWeeklyControl}>{saving ? "Enregistrement…" : "Terminer le contrôle"}</button>
                 </section>
               </div>
             )}
@@ -858,7 +939,7 @@ export default function Home() {
                   {reportPhotos.length > 0 && <><div className="photo-preview-grid">{reportPhotos.map((photo, index) => <figure key={`${photo.name}-${index}`}><img src={photo.url} alt={`Photo jointe ${index + 1}`} /><figcaption>Photo {index + 1}</figcaption><button type="button" aria-label={`Supprimer ${photo.name}`} onClick={() => setReportPhotos(reportPhotos.filter((_, photoIndex) => photoIndex !== index))}>×</button></figure>)}</div><p className="report-photo-count">{reportPhotos.length}/4 photo{reportPhotos.length > 1 ? "s" : ""} ajoutée{reportPhotos.length > 1 ? "s" : ""}</p></>}
                   <div className="report-notice"><span>i</span><p><strong>Le véhicule reste inchangé.</strong> Le signalement n'indique pas une prise de véhicule et ne le passe pas automatiquement en HS.</p></div>
                   {!reportReady && (reportCategory || reportDescription || reportPhotos.length > 0) && <p className="validation-hint">La catégorie, le kilométrage et la description sont nécessaires pour envoyer le signalement.</p>}
-                  <div className="form-actions"><button type="button" className="secondary-button" onClick={() => { resetProblemReport(); setScreen("home"); }}>Annuler</button><button type="button" className="primary-button" disabled={!reportReady} onClick={submitProblemReport}>Envoyer au mécanicien</button></div>
+                  <div className="form-actions"><button type="button" className="secondary-button" disabled={saving} onClick={() => { resetProblemReport(); setScreen("home"); }}>Annuler</button><button type="button" className="primary-button" disabled={!reportReady || saving} onClick={submitProblemReport}>{saving ? "Envoi…" : "Envoyer au mécanicien"}</button></div>
                 </section>
               </div>
             )}
@@ -899,7 +980,7 @@ export default function Home() {
             {screen === "maintenance" && (
               <div className="screen-stack">
                 <section className="mobile-heading"><p className="eyebrow">Prévention</p><h1>Entretiens et alertes</h1><p>Échéances calculées par date ou kilométrage.</p></section>
-                <div className="metric-grid three"><Metric value={String(pendingMaintenance.length)} label="Opérations à faire" tone="orange" /><Metric value={String(pendingMaintenance.filter((operation) => operation.recurrenceKm || operation.recurrenceMonths).length)} label="Échéances récurrentes" tone="blue" /><Metric value={String(25 - fleetVehicles.filter((vehicle) => vehicle.status === "HS").length)} label="Véhicules disponibles" tone="green" /></div>
+                <div className="metric-grid three"><Metric value={String(pendingMaintenance.length)} label="Opérations à faire" tone="orange" /><Metric value={String(pendingMaintenance.filter((operation) => operation.recurrenceKm || operation.recurrenceMonths).length)} label="Échéances récurrentes" tone="blue" /><Metric value={String(fleetVehicles.filter((vehicle) => vehicle.status === "Disponible").length)} label="Véhicules disponibles" tone="green" /></div>
                 <section className="panel timeline-panel">
                   <div className="section-title"><div><p className="eyebrow">À surveiller</p><h2>Prochaines échéances</h2></div><small className="automatic-label">↻ Renouvellement automatique</small></div>
                   <div className="timeline">
@@ -913,13 +994,13 @@ export default function Home() {
               <div className="screen-stack">
                 <section className="mobile-heading"><p className="eyebrow">Vue chef</p><h1>Vue du parc</h1><p>L'essentiel de la flotte en un coup d'œil.</p></section>
                 <div className="fleet-summary">
-                  <div className="fleet-lead"><p className="eyebrow light-text">État du parc</p><strong>{25 - fleetVehicles.filter((vehicle) => vehicle.status === "HS").length}<small>/25</small></strong><span>véhicules disponibles</span><div className="availability-bar"><i /></div></div>
+                  <div className="fleet-lead"><p className="eyebrow light-text">État du parc</p><strong>{fleetVehicles.filter((vehicle) => vehicle.status === "Disponible").length}<small>/{fleetVehicles.length}</small></strong><span>véhicules disponibles</span><div className="availability-bar"><i style={{ width: `${fleetVehicles.length ? (fleetVehicles.filter((vehicle) => vehicle.status === "Disponible").length / fleetVehicles.length) * 100 : 0}%` }} /></div></div>
                   <div className="metric-grid chief-metrics"><Metric value={String(fleetVehicles.filter((vehicle) => vehicle.status === "HS").length)} label="Véhicules HS" tone="red" /><Metric value={String(issues.filter((issue) => !issue.done).length)} label="Problèmes à faire" tone="orange" /><Metric value={String(pendingMaintenance.length)} label="Entretiens à prévoir" tone="blue" /><Metric value="4/8" label="Contrôles hebdo faits" tone="green" /></div>
                 </div>
                 <section className="panel weekly-panel">
                   <div className="weekly-panel-head">
                     <div><p className="eyebrow">Semaine du 10 au 16 août</p><h2>Contrôles hebdomadaires</h2><p>Suivi nominatif des salariés ayant réalisé leur contrôle.</p></div>
-                    <div className="weekly-progress"><strong>50%</strong><span><i /></span><small>4 contrôles sur 8</small></div>
+                    <div className="weekly-progress"><strong>{weeklyCompletionPercent}%</strong><span><i style={{ width: `${weeklyCompletionPercent}%` }} /></span><small>{completedWeeklyCount} contrôle{completedWeeklyCount > 1 ? "s" : ""} sur {weeklyChecks.length}</small></div>
                   </div>
                   <div className="weekly-grid">
                     {weeklyChecks.map((person) => (
@@ -962,7 +1043,7 @@ export default function Home() {
             {activeWorkOperation?.recurrenceKm && workMileage && <div className="renewal-preview"><span>↻</span><p><strong>Prochaine échéance automatique</strong>À {formatKm(Number(workMileage) + activeWorkOperation.recurrenceKm)}, soit {new Intl.NumberFormat("fr-FR").format(activeWorkOperation.recurrenceKm)} km après cette intervention.</p></div>}
             {activeWorkOperation?.recurrenceMonths && <div className="renewal-preview"><span>↻</span><p><strong>Prochaine échéance automatique</strong>{activeWorkOperation.recurrenceMonths} mois après la date de cette intervention.</p></div>}
             <label className="work-field"><span className="field-label">Commentaire <small>Facultatif</small></span><textarea rows={3} value={workComment} onChange={(event) => setWorkComment(event.target.value)} placeholder="Remarque, pièce remplacée, observation…" /></label>
-            <div className="form-actions"><button className="secondary-button" onClick={closeWorkForm}>Annuler</button><button className="primary-button" disabled={!workReady} onClick={submitWorkEntry}>Enregistrer comme fait</button></div>
+            <div className="form-actions"><button className="secondary-button" disabled={saving} onClick={closeWorkForm}>Annuler</button><button className="primary-button" disabled={!workReady || saving} onClick={submitWorkEntry}>{saving ? "Enregistrement…" : "Enregistrer comme fait"}</button></div>
           </section>
         </div>
       )}
