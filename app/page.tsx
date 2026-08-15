@@ -21,8 +21,7 @@ type Vehicle = {
   km: number;
   status: "Disponible" | "HS";
   maintenance: string;
-  accent: string;
-  shape: "boxer" | "master" | "jumpy" | "transit" | "trafic" | "sprinter";
+  image: string;
 };
 
 type Operation = {
@@ -81,12 +80,31 @@ type CheckItem = {
 };
 
 const vehicles: Vehicle[] = [
-  { id: 1, plate: "GA-218-NK", label: "Peugeot Boxer", km: 82460, status: "Disponible", maintenance: "Vidange dans 2 540 km", accent: "#194c74", shape: "boxer" },
-  { id: 2, plate: "FH-704-LP", label: "Renault Master", km: 116220, status: "Disponible", maintenance: "Contrôle technique dans 18 j", accent: "#0f766e", shape: "master" },
-  { id: 3, plate: "GJ-391-RT", label: "Citroën Jumpy", km: 44710, status: "HS", maintenance: "Freinage à contrôler", accent: "#a33a2a", shape: "jumpy" },
-  { id: 4, plate: "FT-866-CV", label: "Ford Transit", km: 98730, status: "Disponible", maintenance: "À jour", accent: "#5b5385", shape: "transit" },
-  { id: 5, plate: "GN-143-BD", label: "Renault Trafic", km: 63490, status: "Disponible", maintenance: "Vidange dans 6 510 km", accent: "#94642d", shape: "trafic" },
-  { id: 6, plate: "GC-552-MZ", label: "Mercedes Sprinter", km: 137080, status: "HS", maintenance: "Diagnostic en cours", accent: "#6b7280", shape: "sprinter" },
+  { id: 1, plate: "GA-218-NK", label: "Renault Master III L2H2 2022", km: 82460, status: "Disponible", maintenance: "Vidange dans 2 540 km", image: "/vehicles/master-3-l2h2.webp" },
+  { id: 2, plate: "FH-704-LP", label: "Renault Master III L2H2 2022", km: 116220, status: "Disponible", maintenance: "Contrôle technique dans 18 j", image: "/vehicles/master-3-l2h2.webp" },
+  { id: 3, plate: "GJ-391-RT", label: "Renault Master III L2H2 2022", km: 44710, status: "HS", maintenance: "Freinage à contrôler", image: "/vehicles/master-3-l2h2.webp" },
+  { id: 4, plate: "FT-866-CV", label: "Renault Master III L2H2 2022", km: 98730, status: "Disponible", maintenance: "À jour", image: "/vehicles/master-3-l2h2.webp" },
+  { id: 5, plate: "GN-143-BD", label: "Renault Master III L2H2 2022", km: 63490, status: "Disponible", maintenance: "Vidange dans 6 510 km", image: "/vehicles/master-3-l2h2.webp" },
+  { id: 6, plate: "GC-552-MZ", label: "Mercedes Sprinter W906", km: 137080, status: "HS", maintenance: "Diagnostic en cours", image: "/vehicles/sprinter-w906.webp" },
+  { id: 7, plate: "GA-842-QV", label: "Renault Master III L2H2 2022", km: 76240, status: "Disponible", maintenance: "À jour", image: "/vehicles/master-3-l2h2.webp" },
+  { id: 8, plate: "GB-317-XD", label: "Renault Master III L2H2 2022", km: 89120, status: "Disponible", maintenance: "Vidange dans 4 880 km", image: "/vehicles/master-3-l2h2.webp" },
+  { id: 9, plate: "GC-908-HR", label: "Renault Master III L2H2 2022", km: 71280, status: "Disponible", maintenance: "À jour", image: "/vehicles/master-3-l2h2.webp" },
+  { id: 10, plate: "GD-451-TK", label: "Renault Master III L2H2 2022", km: 103640, status: "Disponible", maintenance: "Contrôle technique dans 42 j", image: "/vehicles/master-3-l2h2.webp" },
+  { id: 11, plate: "GE-726-PS", label: "Renault Master III L2H2 2022", km: 68410, status: "Disponible", maintenance: "À jour", image: "/vehicles/master-3-l2h2.webp" },
+  { id: 12, plate: "GF-184-WM", label: "Renault Master III L2H2 2022", km: 93780, status: "Disponible", maintenance: "Pneus dans 3 000 km", image: "/vehicles/master-3-l2h2.webp" },
+  { id: 13, plate: "GG-639-KL", label: "Renault Master III L2H2 2022", km: 57950, status: "Disponible", maintenance: "À jour", image: "/vehicles/master-3-l2h2.webp" },
+  { id: 14, plate: "GH-275-VB", label: "Renault Master III L2H2 2022", km: 108330, status: "Disponible", maintenance: "Vidange dans 1 670 km", image: "/vehicles/master-3-l2h2.webp" },
+  { id: 15, plate: "GJ-814-FN", label: "Renault Master III L2H2 2022", km: 85760, status: "Disponible", maintenance: "À jour", image: "/vehicles/master-3-l2h2.webp" },
+  { id: 16, plate: "GK-396-CR", label: "Renault Master III L2H2 2022", km: 74190, status: "Disponible", maintenance: "Contrôle technique dans 63 j", image: "/vehicles/master-3-l2h2.webp" },
+  { id: 17, plate: "HA-423-JS", label: "Nissan Interstar 2025", km: 18420, status: "Disponible", maintenance: "À jour", image: "/vehicles/interstar-2025.webp" },
+  { id: 18, plate: "HB-758-NQ", label: "Nissan Interstar 2025", km: 16380, status: "Disponible", maintenance: "À jour", image: "/vehicles/interstar-2025.webp" },
+  { id: 19, plate: "HC-291-ZL", label: "Nissan Interstar 2025", km: 21970, status: "Disponible", maintenance: "Révision dans 8 030 km", image: "/vehicles/interstar-2025.webp" },
+  { id: 20, plate: "HD-645-BT", label: "Nissan Interstar 2025", km: 14260, status: "Disponible", maintenance: "À jour", image: "/vehicles/interstar-2025.webp" },
+  { id: 21, plate: "HE-873-MC", label: "Nissan Interstar 2025", km: 19640, status: "Disponible", maintenance: "À jour", image: "/vehicles/interstar-2025.webp" },
+  { id: 22, plate: "HF-316-RP", label: "Nissan Interstar 2025", km: 12780, status: "Disponible", maintenance: "À jour", image: "/vehicles/interstar-2025.webp" },
+  { id: 23, plate: "EV-482-DH", label: "Renault Trafic 2018", km: 148630, status: "Disponible", maintenance: "Vidange dans 1 370 km", image: "/vehicles/trafic-2018.webp" },
+  { id: 24, plate: "EX-719-KM", label: "Renault Trafic 2018", km: 132540, status: "Disponible", maintenance: "Contrôle technique dans 27 j", image: "/vehicles/trafic-2018.webp" },
+  { id: 25, plate: "HG-954-SV", label: "Fiat Ducato 2025", km: 17320, status: "Disponible", maintenance: "À jour", image: "/vehicles/ducato-2025.webp" },
 ];
 
 const roleLabels: Record<Role, string> = {
@@ -209,13 +227,8 @@ function StatusPill({ status }: { status: Vehicle["status"] }) {
 
 function VehicleMark({ vehicle, compact = false }: { vehicle: Vehicle; compact?: boolean }) {
   return (
-    <div className={`vehicle-mark model-${vehicle.shape} ${compact ? "compact" : ""}`} style={{ "--vehicle-accent": vehicle.accent } as React.CSSProperties} aria-hidden="true">
-      <span className="vehicle-roof" />
-      <span className="vehicle-windscreen" />
-      <span className="vehicle-grille" />
-      <span className="vehicle-badge" />
-      <span className="vehicle-wheel left" />
-      <span className="vehicle-wheel right" />
+    <div className={`vehicle-mark ${compact ? "compact" : ""}`} aria-hidden="true">
+      <img src={vehicle.image} alt="" />
     </div>
   );
 }
