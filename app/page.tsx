@@ -642,7 +642,7 @@ export default function Home() {
   }
 
   const navigation = role === "salarie"
-    ? [{ key: "home", label: "Accueil", icon: "⌂" }, { key: "vehicles", label: "Véhicules", icon: "▣" }, { key: "maintenance", label: "Alertes", icon: "!" }]
+    ? [{ key: "home", label: "Accueil", icon: "⌂" }, { key: "vehicles", label: "Véhicules", icon: "▣" }]
     : role === "mecano"
       ? [{ key: "workshop", label: "Atelier", icon: "⌁" }, { key: "vehicles", label: "Véhicules", icon: "▣" }, { key: "maintenance", label: "Entretiens", icon: "◷" }]
       : [{ key: "fleet", label: "Pilotage", icon: "▦" }, { key: "vehicles", label: "Parc", icon: "▣" }, { key: "workshop", label: "Atelier", icon: "⌁" }, { key: "maintenance", label: "Entretiens", icon: "◷" }];
@@ -690,7 +690,7 @@ export default function Home() {
                   {allowedRoles.map((allowedRole) => <option key={allowedRole} value={allowedRole}>{roleLabels[allowedRole]}</option>)}
                 </select>
               </label>
-              <button className="notification-button" aria-label="Notifications" onClick={() => setScreen("maintenance")}><span>!</span><i /></button>
+              {role !== "salarie" && <button className="notification-button" aria-label="Notifications" onClick={() => setScreen("maintenance")}><span>!</span><i /></button>}
               <span className="top-avatar">{currentUser?.initials ?? roleInitials[role]}</span>
             </div>
           </header>
