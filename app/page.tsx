@@ -31,11 +31,35 @@ type Operation = {
   detail: string;
   done: boolean;
   completedBy?: string;
+  completedDate?: string;
+  completedKm?: number;
+  comment?: string;
+  recurrenceKm?: number;
+  recurrenceMonths?: number;
+  dueKm?: number;
+  dueDate?: string;
 };
 
 type PhotoPreview = {
   name: string;
   url: string;
+};
+
+type Issue = {
+  id: number;
+  vehicle: string;
+  title: string;
+  meta: string;
+  urgent: boolean;
+  done: boolean;
+  photos?: PhotoPreview[];
+};
+
+type WorkEntry = {
+  kind: "operation" | "issue" | "new";
+  vehicleId: number;
+  operationId?: string;
+  issueId?: number;
 };
 
 type CheckChoice = {
@@ -122,7 +146,7 @@ const issueCategories = [
 
 const totalCheckCount = checkItems.length + 5;
 
-const issueSeed = [
+const issueSeed: Issue[] = [
   { id: 1, vehicle: "GJ-391-RT", title: "Bruit important au freinage", meta: "Signalé aujourd'hui à 07:42 · Lucas M.", urgent: true, done: false },
   { id: 2, vehicle: "FH-704-LP", title: "Voyant moteur intermittent", meta: "Signalé hier à 16:18 · Sarah D.", urgent: false, done: false },
   { id: 3, vehicle: "GA-218-NK", title: "Éclairage arrière droit", meta: "Traité le 14 août · Thomas B.", urgent: false, done: true },
@@ -130,14 +154,14 @@ const issueSeed = [
 
 const operationsSeed: Record<number, Operation[]> = {
   1: [
-    { id: "1-1", title: "Vidange moteur", category: "Entretien", detail: "Prévue à 85 000 km · reste 2 540 km", done: false },
-    { id: "1-2", title: "Contrôle technique", category: "Réglementaire", detail: "À réaliser avant le 12 septembre 2026", done: false },
+    { id: "1-1", title: "Vidange moteur", category: "Entretien", detail: "Prévue à 85 000 km · tous les 20 000 km", done: false, dueKm: 85000, recurrenceKm: 20000 },
+    { id: "1-2", title: "Contrôle technique", category: "Réglementaire", detail: "À réaliser avant le 12 septembre 2026 · renouvellement 24 mois", done: false, dueDate: "2026-09-12", recurrenceMonths: 24 },
     { id: "1-3", title: "Ampoule arrière droite", category: "Éclairage", detail: "Réalisée le 14 août à 82 210 km", done: true, completedBy: "Thomas Bernard" },
     { id: "1-4", title: "Remplacement des pneus avant", category: "Pneumatiques", detail: "Réalisé le 22 juin à 78 430 km", done: true, completedBy: "Thomas Bernard" },
   ],
   2: [
     { id: "2-1", title: "Diagnostiquer le voyant moteur", category: "Signalement", detail: "Signalé le 14 août par Sarah D.", done: false },
-    { id: "2-2", title: "Contrôle technique", category: "Réglementaire", detail: "À réaliser avant le 2 septembre 2026", done: false },
+    { id: "2-2", title: "Contrôle technique", category: "Réglementaire", detail: "À réaliser avant le 2 septembre 2026 · renouvellement 24 mois", done: false, dueDate: "2026-09-02", recurrenceMonths: 24 },
     { id: "2-3", title: "Révision complète", category: "Entretien", detail: "Réalisée le 18 juillet à 111 870 km", done: true, completedBy: "Marc Petit" },
   ],
   3: [
@@ -151,7 +175,7 @@ const operationsSeed: Record<number, Operation[]> = {
     { id: "4-3", title: "Remplacement essuie-glaces", category: "Équipement", detail: "Réalisé le 3 juin à 89 110 km", done: true, completedBy: "Marc Petit" },
   ],
   5: [
-    { id: "5-1", title: "Vidange moteur", category: "Entretien", detail: "Prévue à 70 000 km · reste 6 510 km", done: false },
+    { id: "5-1", title: "Vidange moteur", category: "Entretien", detail: "Prévue à 70 000 km · tous les 20 000 km", done: false, dueKm: 70000, recurrenceKm: 20000 },
     { id: "5-2", title: "Contrôle des niveaux", category: "Entretien", detail: "Réalisé le 11 août à 63 120 km", done: true, completedBy: "Thomas Bernard" },
     { id: "5-3", title: "Remplacement batterie", category: "Électricité", detail: "Réalisé le 16 janvier à 51 840 km", done: true, completedBy: "Marc Petit" },
   ],
@@ -215,12 +239,22 @@ export default function Home() {
   const [reportMileage, setReportMileage] = useState("82460");
   const [reportDescription, setReportDescription] = useState("");
   const [reportPhotos, setReportPhotos] = useState<PhotoPreview[]>([]);
+  const [fleetVehicles, setFleetVehicles] = useState(vehicles);
   const [issues, setIssues] = useState(issueSeed);
   const [operations, setOperations] = useState(operationsSeed);
+  const [issueFilter, setIssueFilter] = useState<"todo" | "done">("todo");
+  const [hideWeeklyControls, setHideWeeklyControls] = useState(false);
+  const [workEntry, setWorkEntry] = useState<WorkEntry | null>(null);
+  const [workTitle, setWorkTitle] = useState("");
+  const [workMileage, setWorkMileage] = useState("");
+  const [workComment, setWorkComment] = useState("");
   const [toast, setToast] = useState("");
 
-  const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId) ?? vehicles[0];
+  const selectedVehicle = fleetVehicles.find((v) => v.id === selectedVehicleId) ?? fleetVehicles[0];
   const selectedOperations = operations[selectedVehicle.id] ?? [];
+  const activeWorkOperation = workEntry?.kind === "operation"
+    ? (operations[workEntry.vehicleId] ?? []).find((operation) => operation.id === workEntry.operationId)
+    : undefined;
   const simpleCheckCount = checkItems.filter((item) => checks[item.id]).length;
   const licenceComplete = Boolean(checks.licence) && (checks.licence === "no" || Boolean(licenceNumber.trim()));
   const damageComplete = Boolean(damageState)
@@ -241,11 +275,15 @@ export default function Home() {
   });
   const controlReady = completedCheckCount === totalCheckCount && issueNotesComplete;
   const reportReady = Boolean(reportCategory && reportMileage.trim() && reportDescription.trim());
+  const workReady = Boolean(workEntry && workTitle.trim() && workMileage.trim());
+  const pendingMaintenance = Object.entries(operations).flatMap(([vehicleId, vehicleOperations]) =>
+    vehicleOperations.filter((operation) => !operation.done).map((operation) => ({ ...operation, vehicleId: Number(vehicleId) })),
+  );
   const filteredVehicles = useMemo(() => {
     const query = search.toLowerCase().trim();
-    if (!query) return vehicles;
-    return vehicles.filter((vehicle) => `${vehicle.plate} ${vehicle.label}`.toLowerCase().includes(query));
-  }, [search]);
+    if (!query) return fleetVehicles;
+    return fleetVehicles.filter((vehicle) => `${vehicle.plate} ${vehicle.label}`.toLowerCase().includes(query));
+  }, [search, fleetVehicles]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
@@ -308,6 +346,7 @@ export default function Home() {
         meta: `Signalé à l'instant · Lucas M. · ${reportCategory}`,
         urgent: false,
         done: false,
+        photos: [...reportPhotos],
       },
       ...issues,
     ]);
@@ -339,16 +378,90 @@ export default function Home() {
     }
   }
 
-  function completeOperation(operationId: string) {
-    setOperations({
-      ...operations,
-      [selectedVehicle.id]: selectedOperations.map((operation) =>
-        operation.id === operationId
-          ? { ...operation, done: true, detail: `Réalisée aujourd'hui à ${formatKm(selectedVehicle.km)}`, completedBy: role === "chef" ? "Alice Dubois" : "Thomas Bernard" }
-          : operation,
-      ),
-    });
-    showToast("Opération ajoutée à l'historique");
+  function formatDateLabel(date: Date) {
+    return new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" }).format(date);
+  }
+
+  function openWorkForm(entry: WorkEntry, suggestedTitle = "") {
+    const vehicle = fleetVehicles.find((item) => item.id === entry.vehicleId) ?? selectedVehicle;
+    setWorkEntry(entry);
+    setWorkTitle(suggestedTitle);
+    setWorkMileage(String(vehicle.km));
+    setWorkComment("");
+  }
+
+  function closeWorkForm() {
+    setWorkEntry(null);
+    setWorkTitle("");
+    setWorkMileage("");
+    setWorkComment("");
+  }
+
+  function changeWorkVehicle(vehicleId: number) {
+    const vehicle = fleetVehicles.find((item) => item.id === vehicleId);
+    if (!workEntry || !vehicle) return;
+    setWorkEntry({ ...workEntry, vehicleId });
+    setWorkMileage(String(vehicle.km));
+  }
+
+  function submitWorkEntry() {
+    if (!workEntry || !workReady) return;
+    const completedKm = Number(workMileage);
+    const completedDate = new Date();
+    const completedDateLabel = formatDateLabel(completedDate);
+    const currentOperations = operations[workEntry.vehicleId] ?? [];
+    let nextOperations = [...currentOperations];
+
+    if (workEntry.kind === "operation" && workEntry.operationId) {
+      const sourceOperation = currentOperations.find((operation) => operation.id === workEntry.operationId);
+      nextOperations = currentOperations.map((operation) => operation.id === workEntry.operationId
+        ? { ...operation, title: workTitle.trim(), done: true, detail: `Réalisée le ${completedDateLabel} à ${formatKm(completedKm)}`, completedBy: role === "chef" ? "Alice Dubois" : "Thomas Bernard", completedDate: completedDateLabel, completedKm, comment: workComment.trim() || undefined }
+        : operation);
+
+      if (sourceOperation?.recurrenceKm || sourceOperation?.recurrenceMonths) {
+        const nextDueKm = sourceOperation.recurrenceKm ? completedKm + sourceOperation.recurrenceKm : undefined;
+        const nextDueDate = sourceOperation.recurrenceMonths ? new Date(completedDate) : undefined;
+        if (nextDueDate && sourceOperation.recurrenceMonths) nextDueDate.setMonth(nextDueDate.getMonth() + sourceOperation.recurrenceMonths);
+        const dueDetail = nextDueKm
+          ? `Prévue à ${formatKm(nextDueKm)} · calculée depuis le kilométrage réalisé`
+          : `À réaliser avant le ${formatDateLabel(nextDueDate!)} · calculée depuis la date réalisée`;
+        nextOperations.push({
+          id: `${workEntry.vehicleId}-${Date.now()}-next`,
+          title: sourceOperation.title,
+          category: sourceOperation.category,
+          detail: dueDetail,
+          done: false,
+          recurrenceKm: sourceOperation.recurrenceKm,
+          recurrenceMonths: sourceOperation.recurrenceMonths,
+          dueKm: nextDueKm,
+          dueDate: nextDueDate?.toISOString().slice(0, 10),
+        });
+      }
+    } else {
+      nextOperations.unshift({
+        id: `${workEntry.vehicleId}-${Date.now()}-done`,
+        title: workTitle.trim(),
+        category: workEntry.kind === "issue" ? "Signalement" : "Intervention",
+        detail: `Réalisée le ${completedDateLabel} à ${formatKm(completedKm)}`,
+        done: true,
+        completedBy: role === "chef" ? "Alice Dubois" : "Thomas Bernard",
+        completedDate: completedDateLabel,
+        completedKm,
+        comment: workComment.trim() || undefined,
+      });
+    }
+
+    setOperations({ ...operations, [workEntry.vehicleId]: nextOperations });
+    setFleetVehicles(fleetVehicles.map((vehicle) => vehicle.id === workEntry.vehicleId ? { ...vehicle, km: Math.max(vehicle.km, completedKm) } : vehicle));
+    if (workEntry.kind === "issue" && workEntry.issueId) setIssues(issues.map((issue) => issue.id === workEntry.issueId ? { ...issue, done: true } : issue));
+    showToast("Opération enregistrée dans l'historique");
+    closeWorkForm();
+  }
+
+  function toggleVehicleStatus() {
+    const nextStatus: Vehicle["status"] = selectedVehicle.status === "HS" ? "Disponible" : "HS";
+    setFleetVehicles(fleetVehicles.map((vehicle) => vehicle.id === selectedVehicle.id ? { ...vehicle, status: nextStatus } : vehicle));
+    showToast(`${selectedVehicle.plate} passé en ${nextStatus}`);
   }
 
   if (!loggedIn) {
@@ -509,9 +622,15 @@ export default function Home() {
                       <p>Dernier kilométrage : <strong>{formatKm(selectedVehicle.km)}</strong></p>
                     </div>
                   </div>
-                  <div className="operation-counts">
-                    <span><strong>{selectedOperations.filter((operation) => !operation.done).length}</strong> à faire</span>
-                    <span><strong>{selectedOperations.filter((operation) => operation.done).length}</strong> réalisées</span>
+                  <div className="vehicle-detail-actions">
+                    <div className="operation-counts">
+                      <span><strong>{selectedOperations.filter((operation) => !operation.done).length}</strong> à faire</span>
+                      <span><strong>{selectedOperations.filter((operation) => operation.done).length}</strong> réalisées</span>
+                    </div>
+                    <div className="vehicle-action-buttons">
+                      <button className="hero-outline-button" onClick={() => openWorkForm({ kind: "new", vehicleId: selectedVehicle.id })}>＋ Opération réalisée</button>
+                      <button className={`hero-status-button ${selectedVehicle.status === "HS" ? "available" : "danger"}`} onClick={toggleVehicleStatus}>{selectedVehicle.status === "HS" ? "Remettre disponible" : "Passer en HS"}</button>
+                    </div>
                   </div>
                 </section>
 
@@ -523,7 +642,7 @@ export default function Home() {
                         <article className="operation-row" key={operation.id}>
                           <span className={`operation-symbol ${operation.category === "Urgent" ? "urgent" : ""}`}>!</span>
                           <div><span className="operation-category">{operation.category}</span><h3>{operation.title}</h3><p>{operation.detail}</p></div>
-                          <button className="outline-button" onClick={() => completeOperation(operation.id)}>Marquer fait</button>
+                          <button className="outline-button" onClick={() => openWorkForm({ kind: "operation", vehicleId: selectedVehicle.id, operationId: operation.id }, operation.title)}>Marquer fait</button>
                         </article>
                       ))}
                       {selectedOperations.every((operation) => operation.done) && <p className="empty-state">Aucune opération en attente sur ce véhicule.</p>}
@@ -531,12 +650,24 @@ export default function Home() {
                   </section>
 
                   <section className="panel operations-panel history">
-                    <div className="section-title"><div><p className="eyebrow">Historique</p><h2>Opérations réalisées</h2></div><span className="panel-count done">{selectedOperations.filter((operation) => operation.done).length}</span></div>
-                    <div className="operation-list">
+                    <div className="section-title"><div><p className="eyebrow">Historique complet</p><h2>Chronologie du véhicule</h2></div><button className={`history-toggle ${hideWeeklyControls ? "active" : ""}`} onClick={() => setHideWeeklyControls(!hideWeeklyControls)}>{hideWeeklyControls ? "Afficher contrôles hebdo" : "Masquer contrôles hebdo"}</button></div>
+                    <div className="vehicle-history">
                       {selectedOperations.filter((operation) => operation.done).map((operation) => (
-                        <article className="operation-row completed" key={operation.id}>
-                          <span className="operation-symbol done">✓</span>
-                          <div><span className="operation-category">{operation.category}</span><h3>{operation.title}</h3><p>{operation.detail}</p><small>Par {operation.completedBy}</small></div>
+                        <article className="history-entry operation-entry" key={operation.id}>
+                          <span className="history-symbol operation">✓</span>
+                          <div><span className="history-type">Opération · {operation.category}</span><h3>{operation.title}</h3><p>{operation.detail}</p>{operation.comment && <blockquote>“{operation.comment}”</blockquote>}<small>Par {operation.completedBy}</small></div>
+                        </article>
+                      ))}
+                      {issues.filter((issue) => issue.vehicle === selectedVehicle.plate).map((issue) => (
+                        <article className="history-entry report-entry" key={`issue-${issue.id}`}>
+                          <span className="history-symbol report">!</span>
+                          <div><span className="history-type">Signalement · {issue.done ? "Fait" : "À faire"}</span><h3>{issue.title}</h3><p>{issue.meta}</p>{issue.photos && issue.photos.length > 0 && <div className="history-photos">{issue.photos.map((photo, index) => <img key={`${photo.name}-${index}`} src={photo.url} alt={`Photo du signalement ${index + 1}`} />)}</div>}</div>
+                        </article>
+                      ))}
+                      {!hideWeeklyControls && weeklyChecks.filter((check) => check.done && check.vehicle === selectedVehicle.plate).map((check) => (
+                        <article className="history-entry check-entry" key={`check-${check.name}`}>
+                          <span className="history-symbol check">✓</span>
+                          <div><span className="history-type">Contrôle hebdomadaire</span><h3>Contrôle réalisé par {check.name}</h3><p>{check.detail} · aucune anomalie bloquante</p></div>
                         </article>
                       ))}
                     </div>
@@ -679,34 +810,37 @@ export default function Home() {
 
             {screen === "workshop" && (
               <div className="screen-stack">
-                <section className="mobile-heading"><p className="eyebrow">Vue mécanicien</p><h1>Atelier</h1><p>Les problèmes signalés, sans étapes inutiles.</p></section>
-                <div className="metric-grid"><Metric value={String(issues.filter((i) => !i.done).length)} label="À faire" tone="orange" /><Metric value="2" label="Véhicules HS" tone="red" /><Metric value="4" label="Entretiens proches" tone="blue" /><Metric value="7" label="Faits ce mois" tone="green" /></div>
-                <section className="panel">
-                  <div className="section-title"><div><p className="eyebrow">File de travail</p><h2>Problèmes signalés</h2></div><div className="filters compact-filters"><button className="active">À faire</button><button>Fait</button></div></div>
+                <section className="workshop-lead"><div><p className="eyebrow">Vue mécanicien</p><h2>Atelier</h2><p>Problèmes, échéances et disponibilités au même endroit.</p></div><button className="primary-button compact-primary" onClick={() => openWorkForm({ kind: "new", vehicleId: selectedVehicle.id })}>＋ Enregistrer une opération</button></section>
+                <div className="metric-grid"><Metric value={String(issues.filter((i) => !i.done).length)} label="Problèmes à faire" tone="orange" /><Metric value={String(fleetVehicles.filter((vehicle) => vehicle.status === "HS").length)} label="Véhicules HS" tone="red" /><Metric value={String(pendingMaintenance.length)} label="Opérations prévues" tone="blue" /><Metric value={String(Object.values(operations).flat().filter((operation) => operation.done).length)} label="Opérations faites" tone="green" /></div>
+                <section className="panel workshop-issues">
+                  <div className="section-title"><div><p className="eyebrow">File de travail</p><h2>Problèmes signalés</h2></div><div className="filters compact-filters"><button className={issueFilter === "todo" ? "active" : ""} onClick={() => setIssueFilter("todo")}>À faire</button><button className={issueFilter === "done" ? "active" : ""} onClick={() => setIssueFilter("done")}>Fait</button></div></div>
                   <div className="issue-list">
-                    {issues.map((issue) => (
+                    {issues.filter((issue) => issueFilter === "done" ? issue.done : !issue.done).map((issue) => (
                       <article className={`issue-card ${issue.done ? "done" : ""}`} key={issue.id}>
                         <span className={`issue-indicator ${issue.urgent ? "urgent" : ""}`}>{issue.done ? "✓" : issue.urgent ? "!" : "·"}</span>
-                        <div className="issue-main"><div className="issue-meta"><span className="plate small">{issue.vehicle}</span>{issue.urgent && <span className="urgent-label">Urgent</span>}</div><h3>{issue.title}</h3><p>{issue.meta}</p></div>
+                        <div className="issue-main"><div className="issue-meta"><button className="plate small plate-button" onClick={() => { const vehicle = fleetVehicles.find((item) => item.plate === issue.vehicle); if (vehicle) selectVehicle(vehicle); }}>{issue.vehicle}</button>{issue.urgent && <span className="urgent-label">Urgent</span>}</div><h3>{issue.title}</h3><p>{issue.meta}</p>{issue.photos && issue.photos.length > 0 && <div className="issue-photo-strip">{issue.photos.map((photo, index) => <img key={`${photo.name}-${index}`} src={photo.url} alt={`Photo ${index + 1} du signalement`} />)}<span>{issue.photos.length} photo{issue.photos.length > 1 ? "s" : ""}</span></div>}</div>
                         <span className={`task-state ${issue.done ? "done" : ""}`}>{issue.done ? "Fait" : "À faire"}</span>
-                        {!issue.done && <button className="outline-button" onClick={() => { setIssues(issues.map((item) => item.id === issue.id ? { ...item, done: true } : item)); showToast("Intervention marquée comme faite"); }}>Marquer fait</button>}
+                        {!issue.done && <button className="outline-button" onClick={() => { const vehicle = fleetVehicles.find((item) => item.plate === issue.vehicle) ?? selectedVehicle; openWorkForm({ kind: "issue", vehicleId: vehicle.id, issueId: issue.id }, issue.title); }}>Clôturer</button>}
                       </article>
                     ))}
+                    {issues.every((issue) => issueFilter === "done" ? !issue.done : issue.done) && <p className="empty-state">Aucun problème dans cette liste.</p>}
                   </div>
                 </section>
+                <div className="dashboard-columns workshop-overview">
+                  <section className="panel"><div className="section-title"><div><p className="eyebrow">Disponibilité</p><h2>Véhicules HS</h2></div><button className="text-button" onClick={() => setScreen("vehicles")}>Voir le parc →</button></div><div className="hs-list">{fleetVehicles.filter((vehicle) => vehicle.status === "HS").map((vehicle) => <article key={vehicle.id}><VehicleMark vehicle={vehicle} compact /><div><span className="plate small">{vehicle.plate}</span><strong>{vehicle.label}</strong><small>{vehicle.maintenance}</small></div><button className="text-button" onClick={() => selectVehicle(vehicle)}>Ouvrir →</button></article>)}{fleetVehicles.every((vehicle) => vehicle.status !== "HS") && <p className="empty-state">Aucun véhicule hors service.</p>}</div></section>
+                  <section className="panel"><div className="section-title"><div><p className="eyebrow">À anticiper</p><h2>Prochaines opérations</h2></div><button className="text-button" onClick={() => setScreen("maintenance")}>Tout voir →</button></div><div className="workshop-maintenance-list">{pendingMaintenance.slice(0, 3).map((operation) => { const vehicle = fleetVehicles.find((item) => item.id === operation.vehicleId)!; return <button key={operation.id} onClick={() => selectVehicle(vehicle)}><span className="maintenance-icon">◷</span><span><strong>{operation.title}</strong><small>{vehicle.plate} · {operation.detail}</small></span><i>→</i></button>; })}</div></section>
+                </div>
               </div>
             )}
 
             {screen === "maintenance" && (
               <div className="screen-stack">
                 <section className="mobile-heading"><p className="eyebrow">Prévention</p><h1>Entretiens et alertes</h1><p>Échéances calculées par date ou kilométrage.</p></section>
-                <div className="metric-grid three"><Metric value="2" label="En retard" tone="red" /><Metric value="4" label="Bientôt" tone="orange" /><Metric value="19" label="À jour" tone="green" /></div>
+                <div className="metric-grid three"><Metric value={String(pendingMaintenance.length)} label="Opérations à faire" tone="orange" /><Metric value={String(pendingMaintenance.filter((operation) => operation.recurrenceKm || operation.recurrenceMonths).length)} label="Échéances récurrentes" tone="blue" /><Metric value={String(25 - fleetVehicles.filter((vehicle) => vehicle.status === "HS").length)} label="Véhicules disponibles" tone="green" /></div>
                 <section className="panel timeline-panel">
-                  <div className="section-title"><div><p className="eyebrow">À surveiller</p><h2>Prochaines échéances</h2></div></div>
+                  <div className="section-title"><div><p className="eyebrow">À surveiller</p><h2>Prochaines échéances</h2></div><small className="automatic-label">↻ Renouvellement automatique</small></div>
                   <div className="timeline">
-                    <article><span className="timeline-dot red" /><div><span className="plate small">GC-552-MZ</span><h3>Contrôle technique dépassé</h3><p>Échéance au 08 août 2026</p></div><span className="late-chip">7 j de retard</span></article>
-                    <article><span className="timeline-dot orange" /><div><span className="plate small">FH-704-LP</span><h3>Contrôle technique</h3><p>Échéance au 2 septembre 2026</p></div><span className="soon-chip">Dans 18 j</span></article>
-                    <article><span className="timeline-dot blue" /><div><span className="plate small">GA-218-NK</span><h3>Vidange moteur</h3><p>Prévue à 85 000 km</p></div><span className="soon-chip">Dans 2 540 km</span></article>
+                    {pendingMaintenance.slice(0, 8).map((operation) => { const vehicle = fleetVehicles.find((item) => item.id === operation.vehicleId)!; const remainingKm = operation.dueKm ? operation.dueKm - vehicle.km : undefined; return <article key={operation.id}><span className={`timeline-dot ${operation.category === "Urgent" ? "red" : operation.recurrenceKm || operation.recurrenceMonths ? "blue" : "orange"}`} /><div><button className="plate small plate-button" onClick={() => selectVehicle(vehicle)}>{vehicle.plate}</button><h3>{operation.title}</h3><p>{operation.detail}</p></div><span className={operation.category === "Urgent" ? "late-chip" : "soon-chip"}>{remainingKm !== undefined ? `${new Intl.NumberFormat("fr-FR").format(remainingKm)} km` : operation.recurrenceMonths ? `${operation.recurrenceMonths} mois` : "À prévoir"}</span></article>; })}
                   </div>
                 </section>
               </div>
@@ -716,8 +850,8 @@ export default function Home() {
               <div className="screen-stack">
                 <section className="mobile-heading"><p className="eyebrow">Vue chef</p><h1>Vue du parc</h1><p>L'essentiel de la flotte en un coup d'œil.</p></section>
                 <div className="fleet-summary">
-                  <div className="fleet-lead"><p className="eyebrow light-text">État du parc</p><strong>23<small>/25</small></strong><span>véhicules disponibles</span><div className="availability-bar"><i /></div></div>
-                  <div className="metric-grid chief-metrics"><Metric value="2" label="Véhicules HS" tone="red" /><Metric value="2" label="Problèmes à faire" tone="orange" /><Metric value="6" label="Entretiens à prévoir" tone="blue" /><Metric value="4/8" label="Contrôles hebdo faits" tone="green" /></div>
+                  <div className="fleet-lead"><p className="eyebrow light-text">État du parc</p><strong>{25 - fleetVehicles.filter((vehicle) => vehicle.status === "HS").length}<small>/25</small></strong><span>véhicules disponibles</span><div className="availability-bar"><i /></div></div>
+                  <div className="metric-grid chief-metrics"><Metric value={String(fleetVehicles.filter((vehicle) => vehicle.status === "HS").length)} label="Véhicules HS" tone="red" /><Metric value={String(issues.filter((issue) => !issue.done).length)} label="Problèmes à faire" tone="orange" /><Metric value={String(pendingMaintenance.length)} label="Entretiens à prévoir" tone="blue" /><Metric value="4/8" label="Contrôles hebdo faits" tone="green" /></div>
                 </div>
                 <section className="panel weekly-panel">
                   <div className="weekly-panel-head">
@@ -736,7 +870,7 @@ export default function Home() {
                   </div>
                 </section>
                 <div className="dashboard-columns">
-                  <section className="panel"><div className="section-title"><div><p className="eyebrow">Attention requise</p><h2>Véhicules HS</h2></div><button className="text-button" onClick={() => setScreen("vehicles")}>Voir le parc →</button></div><div className="hs-list"><article><VehicleMark vehicle={vehicles[2]} compact /><div><span className="plate small">GJ-391-RT</span><strong>Citroën Jumpy</strong><small>Bruit important au freinage</small></div><StatusPill status="HS" /></article><article><VehicleMark vehicle={vehicles[5]} compact /><div><span className="plate small">GC-552-MZ</span><strong>Mercedes Sprinter</strong><small>Diagnostic en cours</small></div><StatusPill status="HS" /></article></div></section>
+                  <section className="panel"><div className="section-title"><div><p className="eyebrow">Attention requise</p><h2>Véhicules HS</h2></div><button className="text-button" onClick={() => setScreen("vehicles")}>Voir le parc →</button></div><div className="hs-list">{fleetVehicles.filter((vehicle) => vehicle.status === "HS").map((vehicle) => <article key={vehicle.id}><VehicleMark vehicle={vehicle} compact /><div><span className="plate small">{vehicle.plate}</span><strong>{vehicle.label}</strong><small>{vehicle.maintenance}</small></div><StatusPill status="HS" /></article>)}</div></section>
                   <section className="panel"><div className="section-title"><div><p className="eyebrow">Aujourd'hui</p><h2>Activité récente</h2></div></div><div className="activity-list"><article><span className="activity-icon orange">!</span><div><strong>Problème signalé</strong><p>Lucas · GJ-391-RT</p></div><time>07:42</time></article><article><span className="activity-icon blue">123</span><div><strong>Kilométrage relevé</strong><p>Sarah · FH-704-LP</p></div><time>07:18</time></article><article><span className="activity-icon green">✓</span><div><strong>Contrôle terminé</strong><p>Mehdi · FT-866-CV</p></div><time>06:54</time></article></div></section>
                 </div>
               </div>
@@ -750,6 +884,25 @@ export default function Home() {
           </nav>
         </section>
       </div>
+      {workEntry && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeWorkForm(); }}>
+          <section className="work-modal" role="dialog" aria-modal="true" aria-labelledby="work-modal-title">
+            <div className="work-modal-head"><div><p className="eyebrow">Saisie mécanicien</p><h2 id="work-modal-title">{workEntry.kind === "new" ? "Enregistrer une opération" : "Clôturer avec une opération"}</h2></div><button aria-label="Fermer" onClick={closeWorkForm}>×</button></div>
+            <p className="muted">L'opération, le kilométrage et la date seront ajoutés à la chronologie du véhicule.</p>
+
+            <div className="work-form-grid">
+              <label><span className="field-label">Véhicule *</span><select value={workEntry.vehicleId} disabled={workEntry.kind !== "new"} onChange={(event) => changeWorkVehicle(Number(event.target.value))}>{fleetVehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.plate} · {vehicle.label}</option>)}</select></label>
+              <label><span className="field-label">Date</span><div className="automatic-date"><span>✓</span><strong>{formatDateLabel(new Date())}</strong><small>Automatique</small></div></label>
+            </div>
+            <label className="work-field"><span className="field-label">Opération réalisée *</span><input value={workTitle} onChange={(event) => setWorkTitle(event.target.value)} placeholder="Ex. Vidange moteur et remplacement du filtre" /></label>
+            <label className="work-field"><span className="field-label">Kilométrage lors de l'opération *</span><div className="unit-input"><input value={workMileage} onChange={(event) => setWorkMileage(event.target.value.replace(/\D/g, ""))} inputMode="numeric" /><span>km</span></div></label>
+            {activeWorkOperation?.recurrenceKm && workMileage && <div className="renewal-preview"><span>↻</span><p><strong>Prochaine échéance automatique</strong>À {formatKm(Number(workMileage) + activeWorkOperation.recurrenceKm)}, soit {new Intl.NumberFormat("fr-FR").format(activeWorkOperation.recurrenceKm)} km après cette intervention.</p></div>}
+            {activeWorkOperation?.recurrenceMonths && <div className="renewal-preview"><span>↻</span><p><strong>Prochaine échéance automatique</strong>{activeWorkOperation.recurrenceMonths} mois après la date de cette intervention.</p></div>}
+            <label className="work-field"><span className="field-label">Commentaire <small>Facultatif</small></span><textarea rows={3} value={workComment} onChange={(event) => setWorkComment(event.target.value)} placeholder="Remarque, pièce remplacée, observation…" /></label>
+            <div className="form-actions"><button className="secondary-button" onClick={closeWorkForm}>Annuler</button><button className="primary-button" disabled={!workReady} onClick={submitWorkEntry}>Enregistrer comme fait</button></div>
+          </section>
+        </div>
+      )}
       {toast && <div className="toast"><span>✓</span>{toast}</div>}
     </main>
   );
