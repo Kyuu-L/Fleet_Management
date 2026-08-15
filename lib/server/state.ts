@@ -125,7 +125,7 @@ export async function readApplicationState() {
       JOIN vehicles v ON v.id = wc.vehicle_id
       JOIN users u ON u.id = wc.user_id
       ORDER BY occurredAt DESC
-      LIMIT 12
+      LIMIT 25
     `).all<ActivityRow>(),
   ]);
 

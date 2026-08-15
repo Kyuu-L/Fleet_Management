@@ -65,4 +65,5 @@ test("builds recent activity from every fleet workflow", async () => {
   assert.match(state, /mileage_logs/);
   assert.match(state, /weekly_controls/);
   assert.match(state, /Opération atelier réalisée/);
+  assert.match(state, /LIMIT 25/);
 });
