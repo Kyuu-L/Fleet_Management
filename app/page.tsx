@@ -107,6 +107,19 @@ const damagePhotoSlots = [
   { id: "right", label: "Côté droit" },
 ];
 
+const issueCategories = [
+  "Pneus",
+  "Freinage",
+  "Feux et signalisation",
+  "Rétroviseurs",
+  "Voyant tableau de bord",
+  "Niveaux ou fuite",
+  "Carrosserie ou vitrage",
+  "Moteur ou comportement routier",
+  "Document ou conformité",
+  "Autre",
+];
+
 const totalCheckCount = checkItems.length + 5;
 
 const issueSeed = [
@@ -198,6 +211,9 @@ export default function Home() {
   const [damageNotes, setDamageNotes] = useState("");
   const [controlComment, setControlComment] = useState("");
   const [damagePhotos, setDamagePhotos] = useState<Record<string, PhotoPreview>>({});
+  const [reportCategory, setReportCategory] = useState("");
+  const [reportMileage, setReportMileage] = useState("82460");
+  const [reportDescription, setReportDescription] = useState("");
   const [reportPhotos, setReportPhotos] = useState<PhotoPreview[]>([]);
   const [issues, setIssues] = useState(issueSeed);
   const [operations, setOperations] = useState(operationsSeed);
@@ -224,6 +240,7 @@ export default function Home() {
     return !choice?.needsNote || Boolean(checkNotes[item.id]?.trim());
   });
   const controlReady = completedCheckCount === totalCheckCount && issueNotesComplete;
+  const reportReady = Boolean(reportCategory && reportMileage.trim() && reportDescription.trim());
   const filteredVehicles = useMemo(() => {
     const query = search.toLowerCase().trim();
     if (!query) return vehicles;
@@ -273,6 +290,32 @@ export default function Home() {
     setDamagePhotos({});
   }
 
+  function resetProblemReport() {
+    setReportCategory("");
+    setReportMileage(String(selectedVehicle.km));
+    setReportDescription("");
+    setReportPhotos([]);
+  }
+
+  function submitProblemReport() {
+    if (!reportReady) return;
+    const title = reportDescription.trim().split(/[.!?\n]/)[0].slice(0, 72) || reportCategory;
+    setIssues([
+      {
+        id: Date.now(),
+        vehicle: selectedVehicle.plate,
+        title,
+        meta: `Signalé à l'instant · Lucas M. · ${reportCategory}`,
+        urgent: false,
+        done: false,
+      },
+      ...issues,
+    ]);
+    showToast(`Problème transmis${reportPhotos.length ? ` avec ${reportPhotos.length} photo${reportPhotos.length > 1 ? "s" : ""}` : ""}`);
+    resetProblemReport();
+    setScreen("home");
+  }
+
   function login(event: FormEvent) {
     event.preventDefault();
     setLoggedIn(true);
@@ -287,6 +330,7 @@ export default function Home() {
   function selectVehicle(vehicle: Vehicle) {
     setSelectedVehicleId(vehicle.id);
     setMileage(String(vehicle.km));
+    setReportMileage(String(vehicle.km));
     if (role === "salarie") {
       setScreen("home");
       showToast(`${vehicle.plate} est maintenant affiché par défaut`);
@@ -611,15 +655,24 @@ export default function Home() {
             {screen === "report" && (
               <div className="narrow-screen wide-form">
                 <button className="back-link" onClick={() => setScreen("home")}>← Retour</button>
-                <section className="form-card">
-                  <p className="eyebrow">{selectedVehicle.label} · {selectedVehicle.plate}</p><h2>Signaler un problème</h2><p className="muted">Le mécanicien et le chef retrouveront ce signalement dans leur tableau de bord.</p>
-                  <div className="form-grid"><label><span className="field-label">Catégorie</span><select defaultValue=""><option value="" disabled>Choisir une catégorie</option><option>Mécanique</option><option>Pneumatiques</option><option>Éclairage</option><option>Carrosserie</option><option>Autre</option></select></label><label><span className="field-label">Kilométrage</span><div className="unit-input compact"><input defaultValue={selectedVehicle.km} inputMode="numeric" /><span>km</span></div></label></div>
-                  <fieldset><legend className="field-label">Niveau d'urgence</legend><div className="urgency-picker"><label><input type="radio" name="urgency" defaultChecked /><span>Normal<small>À vérifier</small></span></label><label><input type="radio" name="urgency" /><span>Urgent<small>Risque immédiat</small></span></label></div></fieldset>
-                  <label><span className="field-label">Description</span><textarea placeholder="Décrivez ce que vous avez constaté…" rows={4} /></label>
-                  <label className={`photo-drop ${reportPhotos.length ? "has-files" : ""}`} htmlFor="issue-photos"><span>＋</span><strong>{reportPhotos.length ? "Ajouter une autre photo" : "Ajouter des photos"}</strong><small>Jusqu'à 4 photos · JPG, PNG ou WebP</small></label>
+                <section className="form-card report-card">
+                  <div className="report-heading"><div><p className="eyebrow">Signalement terrain</p><h2>Signaler un problème</h2><p className="muted">Décrivez simplement ce que vous constatez. Le mécanicien et le chef recevront le signalement.</p></div><span className="report-symbol">!</span></div>
+                  <div className="report-vehicle"><VehicleMark vehicle={selectedVehicle} compact /><div><span className="plate small">{selectedVehicle.plate}</span><strong>{selectedVehicle.label}</strong><small>{formatKm(selectedVehicle.km)} au dernier relevé</small></div><StatusPill status={selectedVehicle.status} /></div>
+
+                  <div className="report-section-label"><span>01</span><strong>Le problème</strong></div>
+                  <div className="form-grid report-fields">
+                    <label><span className="field-label">Catégorie *</span><select value={reportCategory} onChange={(event) => setReportCategory(event.target.value)}><option value="" disabled>Choisir dans la liste</option>{issueCategories.map((category) => <option key={category}>{category}</option>)}</select></label>
+                    <label><span className="field-label">Kilométrage actuel *</span><div className="unit-input compact"><input value={reportMileage} onChange={(event) => setReportMileage(event.target.value.replace(/\D/g, ""))} inputMode="numeric" /><span>km</span></div></label>
+                  </div>
+                  <label className="report-description"><span className="field-label">Description *</span><textarea value={reportDescription} onChange={(event) => setReportDescription(event.target.value)} placeholder="Ex. Un bruit métallique se fait entendre au freinage, surtout à faible vitesse…" rows={5} /><small>{reportDescription.trim().length ? `${reportDescription.trim().length} caractères` : "Indiquez où, quand et comment le problème se manifeste."}</small></label>
+
+                  <div className="report-section-label"><span>02</span><strong>Photos</strong><small>Facultatives</small></div>
+                  <label className={`photo-drop ${reportPhotos.length ? "has-files" : ""} ${reportPhotos.length === 4 ? "full" : ""}`} htmlFor={reportPhotos.length < 4 ? "issue-photos" : undefined}><span>{reportPhotos.length === 4 ? "✓" : "＋"}</span><strong>{reportPhotos.length === 4 ? "4 photos ajoutées" : reportPhotos.length ? "Ajouter une autre photo" : "Ajouter des photos"}</strong><small>Jusqu'à 4 photos · JPG, PNG ou WebP</small></label>
                   <input className="visually-hidden" id="issue-photos" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={handleReportPhotos} />
-                  {reportPhotos.length > 0 && <div className="photo-preview-grid">{reportPhotos.map((photo, index) => <figure key={`${photo.name}-${index}`}><img src={photo.url} alt={`Photo jointe ${index + 1}`} /><figcaption>{photo.name}</figcaption><button aria-label={`Supprimer ${photo.name}`} onClick={() => setReportPhotos(reportPhotos.filter((_, photoIndex) => photoIndex !== index))}>×</button></figure>)}</div>}
-                  <div className="form-actions"><button className="secondary-button" onClick={() => { setReportPhotos([]); setScreen("home"); }}>Annuler</button><button className="primary-button" onClick={() => { showToast(`Problème transmis${reportPhotos.length ? ` avec ${reportPhotos.length} photo${reportPhotos.length > 1 ? "s" : ""}` : ""}`); setReportPhotos([]); setScreen("home"); }}>Envoyer le signalement</button></div>
+                  {reportPhotos.length > 0 && <><div className="photo-preview-grid">{reportPhotos.map((photo, index) => <figure key={`${photo.name}-${index}`}><img src={photo.url} alt={`Photo jointe ${index + 1}`} /><figcaption>Photo {index + 1}</figcaption><button type="button" aria-label={`Supprimer ${photo.name}`} onClick={() => setReportPhotos(reportPhotos.filter((_, photoIndex) => photoIndex !== index))}>×</button></figure>)}</div><p className="report-photo-count">{reportPhotos.length}/4 photo{reportPhotos.length > 1 ? "s" : ""} ajoutée{reportPhotos.length > 1 ? "s" : ""}</p></>}
+                  <div className="report-notice"><span>i</span><p><strong>Le véhicule reste inchangé.</strong> Le signalement n'indique pas une prise de véhicule et ne le passe pas automatiquement en HS.</p></div>
+                  {!reportReady && (reportCategory || reportDescription || reportPhotos.length > 0) && <p className="validation-hint">La catégorie, le kilométrage et la description sont nécessaires pour envoyer le signalement.</p>}
+                  <div className="form-actions"><button type="button" className="secondary-button" onClick={() => { resetProblemReport(); setScreen("home"); }}>Annuler</button><button type="button" className="primary-button" disabled={!reportReady} onClick={submitProblemReport}>Envoyer au mécanicien</button></div>
                 </section>
               </div>
             )}
