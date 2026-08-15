@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { preparePhotoFile } from "@/lib/client/photos";
 
 type Role = "salarie" | "mecano" | "chef";
 type AppUser = { id: number; name: string; initials: string; role: Role };
@@ -338,6 +339,7 @@ export default function Home() {
   async function apiRequest<T>(url: string, init?: RequestInit) {
     const response = await fetch(url, init);
     const data = await response.json().catch(() => ({})) as T & { error?: string };
+    if (response.status === 413) throw new Error("Les photos sont encore trop lourdes. Reprenez-les puis réessayez.");
     if (!response.ok) throw new Error(data.error || "Une erreur est survenue.");
     return data;
   }
@@ -387,12 +389,15 @@ export default function Home() {
 
   async function readPhotoFiles(files: FileList | null, limit: number) {
     const selected = Array.from(files ?? []).slice(0, limit);
-    return Promise.all(selected.map((file) => new Promise<PhotoPreview>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve({ name: file.name, url: String(reader.result), file });
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(file);
-    })));
+    return Promise.all(selected.map(async (file) => {
+      const preparedFile = await preparePhotoFile(file);
+      return new Promise<PhotoPreview>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve({ name: preparedFile.name, url: String(reader.result), file: preparedFile });
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(preparedFile);
+      });
+    }));
   }
 
   async function handleReportPhotos(event: ChangeEvent<HTMLInputElement>) {
