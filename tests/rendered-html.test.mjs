@@ -47,3 +47,12 @@ test("keeps future maintenance scheduled without treating it as current work", a
   assert.match(maintenance, /maintenanceLeadKm = 3000/);
   assert.match(maintenance, /maintenanceLeadDays = 30/);
 });
+
+test("connects vehicle filters and vehicle-level issue closure", async () => {
+  const page = await readFile(new URL("app/page.tsx", root), "utf8");
+  assert.match(page, /setVehicleFilter\("available"\)/);
+  assert.match(page, /setVehicleFilter\("hs"\)/);
+  assert.match(page, /selectedPendingIssues/);
+  assert.match(page, /pending-issue-/);
+  assert.match(page, />Clôturer</);
+});

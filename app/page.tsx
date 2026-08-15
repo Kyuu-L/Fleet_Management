@@ -5,6 +5,7 @@ import { preparePhotoFile } from "@/lib/client/photos";
 import { isMaintenanceActionable } from "@/lib/maintenance";
 
 type Role = "salarie" | "mecano" | "chef";
+type VehicleFilter = "all" | "available" | "hs";
 type AppUser = { id: number; name: string; initials: string; role: Role };
 type Screen =
   | "home"
@@ -260,6 +261,7 @@ export default function Home() {
   const [screen, setScreen] = useState<Screen>("home");
   const [selectedVehicleId, setSelectedVehicleId] = useState(1);
   const [search, setSearch] = useState("");
+  const [vehicleFilter, setVehicleFilter] = useState<VehicleFilter>("all");
   const [mileage, setMileage] = useState("82460");
   const [checks, setChecks] = useState<Record<string, string>>({});
   const [checkNotes, setCheckNotes] = useState<Record<string, string>>({});
@@ -319,6 +321,8 @@ export default function Home() {
     return vehicle && isMaintenanceActionable(operation, vehicle.km);
   });
   const selectedActionableOperations = selectedOperations.filter((operation) => isMaintenanceActionable(operation, selectedVehicle.km));
+  const selectedPendingIssues = issues.filter((issue) => issue.vehicle === selectedVehicle.plate && !issue.done);
+  const selectedCurrentWorkCount = selectedActionableOperations.length + selectedPendingIssues.length;
   const periodicPending = actionableMaintenance.filter((operation) => operation.recurrenceKm || operation.recurrenceMonths);
   const periodicCompleted = Object.entries(operations).flatMap(([vehicleId, vehicleOperations]) =>
     vehicleOperations.filter((operation) => operation.done && (operation.recurrenceKm || operation.recurrenceMonths)).map((operation) => ({ ...operation, vehicleId: Number(vehicleId) })),
@@ -331,9 +335,14 @@ export default function Home() {
     : issues.some((issue) => issue.done) || periodicCompleted.length > 0;
   const filteredVehicles = useMemo(() => {
     const query = search.toLowerCase().trim();
-    if (!query) return fleetVehicles;
-    return fleetVehicles.filter((vehicle) => `${vehicle.plate} ${vehicle.label}`.toLowerCase().includes(query));
-  }, [search, fleetVehicles]);
+    return fleetVehicles.filter((vehicle) => {
+      const matchesSearch = !query || `${vehicle.plate} ${vehicle.label}`.toLowerCase().includes(query);
+      const matchesStatus = vehicleFilter === "all"
+        || (vehicleFilter === "available" && vehicle.status === "Disponible")
+        || (vehicleFilter === "hs" && vehicle.status === "HS");
+      return matchesSearch && matchesStatus;
+    });
+  }, [search, vehicleFilter, fleetVehicles]);
 
   const allowedRoles = useMemo(() => {
     if (!currentUser) return [role];
@@ -744,7 +753,11 @@ export default function Home() {
               <div className="screen-stack">
                 <section className="mobile-heading"><button className="back-button" onClick={() => setScreen(role === "salarie" ? "home" : role === "mecano" ? "workshop" : "fleet")}>←</button><p className="eyebrow">{fleetVehicles.length} utilitaires</p><h1>{role === "salarie" ? "Choisir un véhicule" : "Ouvrir une fiche véhicule"}</h1><p>{role === "salarie" ? "Plusieurs salariés peuvent utiliser le même véhicule." : "Consultez les opérations réalisées et celles qui restent à faire."}</p></section>
                 <div className="search-field"><span aria-hidden="true">⌕</span><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Plaque, marque ou modèle" aria-label="Rechercher un véhicule" /></div>
-                <div className="filters"><button className="active">Tous <span>{fleetVehicles.length}</span></button><button>Disponibles <span>{fleetVehicles.filter((vehicle) => vehicle.status === "Disponible").length}</span></button><button>HS <span>{fleetVehicles.filter((vehicle) => vehicle.status === "HS").length}</span></button></div>
+                <div className="filters">
+                  <button className={vehicleFilter === "all" ? "active" : ""} aria-pressed={vehicleFilter === "all"} onClick={() => setVehicleFilter("all")}>Tous <span>{fleetVehicles.length}</span></button>
+                  <button className={vehicleFilter === "available" ? "active" : ""} aria-pressed={vehicleFilter === "available"} onClick={() => setVehicleFilter("available")}>Disponibles <span>{fleetVehicles.filter((vehicle) => vehicle.status === "Disponible").length}</span></button>
+                  <button className={vehicleFilter === "hs" ? "active" : ""} aria-pressed={vehicleFilter === "hs"} onClick={() => setVehicleFilter("hs")}>HS <span>{fleetVehicles.filter((vehicle) => vehicle.status === "HS").length}</span></button>
+                </div>
                 <div className="vehicle-grid">
                   {filteredVehicles.map((vehicle) => (
                     <button className={`vehicle-list-card ${vehicle.id === selectedVehicleId ? "selected" : ""}`} key={vehicle.id} onClick={() => selectVehicle(vehicle)}>
@@ -771,7 +784,7 @@ export default function Home() {
                   </div>
                   <div className="vehicle-detail-actions">
                     <div className="operation-counts">
-                      <span><strong>{selectedActionableOperations.length}</strong> à faire</span>
+                      <span><strong>{selectedCurrentWorkCount}</strong> à faire</span>
                       <span><strong>{selectedOperations.filter((operation) => operation.done).length}</strong> réalisées</span>
                     </div>
                     <div className="vehicle-action-buttons">
@@ -783,8 +796,15 @@ export default function Home() {
 
                 <div className="operations-layout">
                   <section className="panel operations-panel pending">
-                    <div className="section-title"><div><p className="eyebrow">À traiter</p><h2>Opérations à faire</h2></div><span className="panel-count">{selectedActionableOperations.length}</span></div>
+                    <div className="section-title"><div><p className="eyebrow">À traiter</p><h2>Opérations à faire</h2></div><span className="panel-count">{selectedCurrentWorkCount}</span></div>
                     <div className="operation-list">
+                      {selectedPendingIssues.map((issue) => (
+                        <article className="operation-row" key={`pending-issue-${issue.id}`}>
+                          <span className={`operation-symbol ${issue.urgent ? "urgent" : ""}`}>!</span>
+                          <div><span className="operation-category">Signalement</span><h3>{issue.title}</h3><p>{issue.meta}</p></div>
+                          <button className="outline-button" onClick={() => openWorkForm({ kind: "issue", vehicleId: selectedVehicle.id, issueId: issue.id }, issue.title)}>Clôturer</button>
+                        </article>
+                      ))}
                       {selectedActionableOperations.map((operation) => (
                         <article className="operation-row" key={operation.id}>
                           <span className={`operation-symbol ${operation.category === "Urgent" ? "urgent" : ""}`}>!</span>
@@ -792,7 +812,7 @@ export default function Home() {
                           <button className="outline-button" onClick={() => openWorkForm({ kind: "operation", vehicleId: selectedVehicle.id, operationId: operation.id }, operation.title)}>Marquer fait</button>
                         </article>
                       ))}
-                      {selectedActionableOperations.length === 0 && <p className="empty-state">Aucune opération à traiter actuellement sur ce véhicule.</p>}
+                      {selectedCurrentWorkCount === 0 && <p className="empty-state">Aucune opération à traiter actuellement sur ce véhicule.</p>}
                     </div>
                   </section>
 
