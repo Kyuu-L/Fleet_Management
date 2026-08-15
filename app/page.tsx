@@ -2,6 +2,7 @@
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { preparePhotoFile } from "@/lib/client/photos";
+import { isMaintenanceActionable } from "@/lib/maintenance";
 
 type Role = "salarie" | "mecano" | "chef";
 type AppUser = { id: number; name: string; initials: string; role: Role };
@@ -313,7 +314,12 @@ export default function Home() {
   const pendingMaintenance = Object.entries(operations).flatMap(([vehicleId, vehicleOperations]) =>
     vehicleOperations.filter((operation) => !operation.done).map((operation) => ({ ...operation, vehicleId: Number(vehicleId) })),
   );
-  const periodicPending = pendingMaintenance.filter((operation) => operation.recurrenceKm || operation.recurrenceMonths);
+  const actionableMaintenance = pendingMaintenance.filter((operation) => {
+    const vehicle = fleetVehicles.find((item) => item.id === operation.vehicleId);
+    return vehicle && isMaintenanceActionable(operation, vehicle.km);
+  });
+  const selectedActionableOperations = selectedOperations.filter((operation) => isMaintenanceActionable(operation, selectedVehicle.km));
+  const periodicPending = actionableMaintenance.filter((operation) => operation.recurrenceKm || operation.recurrenceMonths);
   const periodicCompleted = Object.entries(operations).flatMap(([vehicleId, vehicleOperations]) =>
     vehicleOperations.filter((operation) => operation.done && (operation.recurrenceKm || operation.recurrenceMonths)).map((operation) => ({ ...operation, vehicleId: Number(vehicleId) })),
   );
@@ -765,7 +771,7 @@ export default function Home() {
                   </div>
                   <div className="vehicle-detail-actions">
                     <div className="operation-counts">
-                      <span><strong>{selectedOperations.filter((operation) => !operation.done).length}</strong> à faire</span>
+                      <span><strong>{selectedActionableOperations.length}</strong> à faire</span>
                       <span><strong>{selectedOperations.filter((operation) => operation.done).length}</strong> réalisées</span>
                     </div>
                     <div className="vehicle-action-buttons">
@@ -777,16 +783,16 @@ export default function Home() {
 
                 <div className="operations-layout">
                   <section className="panel operations-panel pending">
-                    <div className="section-title"><div><p className="eyebrow">À traiter</p><h2>Opérations à faire</h2></div><span className="panel-count">{selectedOperations.filter((operation) => !operation.done).length}</span></div>
+                    <div className="section-title"><div><p className="eyebrow">À traiter</p><h2>Opérations à faire</h2></div><span className="panel-count">{selectedActionableOperations.length}</span></div>
                     <div className="operation-list">
-                      {selectedOperations.filter((operation) => !operation.done).map((operation) => (
+                      {selectedActionableOperations.map((operation) => (
                         <article className="operation-row" key={operation.id}>
                           <span className={`operation-symbol ${operation.category === "Urgent" ? "urgent" : ""}`}>!</span>
                           <div><span className="operation-category">{operation.category}</span><h3>{operation.title}</h3><p>{operation.detail}</p></div>
                           <button className="outline-button" onClick={() => openWorkForm({ kind: "operation", vehicleId: selectedVehicle.id, operationId: operation.id }, operation.title)}>Marquer fait</button>
                         </article>
                       ))}
-                      {selectedOperations.every((operation) => operation.done) && <p className="empty-state">Aucune opération en attente sur ce véhicule.</p>}
+                      {selectedActionableOperations.length === 0 && <p className="empty-state">Aucune opération à traiter actuellement sur ce véhicule.</p>}
                     </div>
                   </section>
 
@@ -985,7 +991,7 @@ export default function Home() {
             {screen === "maintenance" && (
               <div className="screen-stack">
                 <section className="mobile-heading"><p className="eyebrow">Prévention</p><h1>Entretiens et alertes</h1><p>Échéances calculées par date ou kilométrage.</p></section>
-                <div className="metric-grid three"><Metric value={String(pendingMaintenance.length)} label="Opérations à faire" tone="orange" /><Metric value={String(pendingMaintenance.filter((operation) => operation.recurrenceKm || operation.recurrenceMonths).length)} label="Échéances récurrentes" tone="blue" /><Metric value={String(fleetVehicles.filter((vehicle) => vehicle.status === "Disponible").length)} label="Véhicules disponibles" tone="green" /></div>
+                <div className="metric-grid three"><Metric value={String(actionableMaintenance.length)} label="Opérations à faire" tone="orange" /><Metric value={String(pendingMaintenance.filter((operation) => operation.recurrenceKm || operation.recurrenceMonths).length)} label="Échéances planifiées" tone="blue" /><Metric value={String(fleetVehicles.filter((vehicle) => vehicle.status === "Disponible").length)} label="Véhicules disponibles" tone="green" /></div>
                 <section className="panel timeline-panel">
                   <div className="section-title"><div><p className="eyebrow">À surveiller</p><h2>Prochaines échéances</h2></div><small className="automatic-label">↻ Renouvellement automatique</small></div>
                   <div className="timeline">

@@ -36,3 +36,14 @@ test("keeps all write workflows connected to server routes", async () => {
     assert.match(page, new RegExp(endpoint.replaceAll("/", "\\/")));
   }
 });
+
+test("keeps future maintenance scheduled without treating it as current work", async () => {
+  const [page, maintenance] = await Promise.all([
+    readFile(new URL("app/page.tsx", root), "utf8"),
+    readFile(new URL("lib/maintenance.ts", root), "utf8"),
+  ]);
+  assert.match(page, /selectedActionableOperations/);
+  assert.match(page, /actionableMaintenance/);
+  assert.match(maintenance, /maintenanceLeadKm = 3000/);
+  assert.match(maintenance, /maintenanceLeadDays = 30/);
+});
