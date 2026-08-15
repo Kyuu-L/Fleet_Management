@@ -196,6 +196,7 @@ export default function Home() {
   const [licenceNumber, setLicenceNumber] = useState("");
   const [damageState, setDamageState] = useState("");
   const [damageNotes, setDamageNotes] = useState("");
+  const [controlComment, setControlComment] = useState("");
   const [damagePhotos, setDamagePhotos] = useState<Record<string, PhotoPreview>>({});
   const [reportPhotos, setReportPhotos] = useState<PhotoPreview[]>([]);
   const [issues, setIssues] = useState(issueSeed);
@@ -268,6 +269,7 @@ export default function Home() {
     setLicenceNumber("");
     setDamageState("");
     setDamageNotes("");
+    setControlComment("");
     setDamagePhotos({});
   }
 
@@ -593,6 +595,11 @@ export default function Home() {
                       <p className="photo-requirement"><strong>{Object.keys(damagePhotos).length}/4 photos</strong>{Object.keys(damagePhotos).length === 4 ? " · dossier complet" : " · encore requises pour valider"}</p>
                     </div>
                   </div>
+
+                  <label className="control-comment">
+                    <span>Commentaire général <small>Facultatif</small></span>
+                    <textarea rows={4} value={controlComment} onChange={(event) => setControlComment(event.target.value)} placeholder="Ajoutez une remarque utile sur le véhicule ou sur ce contrôle…" />
+                  </label>
 
                   <div className="control-summary"><span className={completedCheckCount === totalCheckCount ? "complete" : ""}>{completedCheckCount}/{totalCheckCount} renseignés</span><span className={checkIssueCount ? "issue" : ""}>{checkIssueCount} anomalie{checkIssueCount > 1 ? "s" : ""}</span></div>
                   {!controlReady && completedCheckCount >= totalCheckCount - 1 && <p className="validation-hint">Complétez les champs obligatoires, les descriptions d'anomalies et les quatre photos avant de terminer.</p>}
