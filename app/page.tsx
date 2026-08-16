@@ -61,6 +61,13 @@ type WeeklyCheck = {
   detail: string;
 };
 
+type VehicleWeeklyHistory = {
+  id: number;
+  person: string;
+  detail: string;
+  photos: PhotoPreview[];
+};
+
 type Issue = {
   id: number;
   vehicle: string;
@@ -104,32 +111,17 @@ type CheckItem = {
   choices: CheckChoice[];
 };
 
-const vehicles: Vehicle[] = [
-  { id: 1, plate: "GA-218-NK", label: "Renault Master III L2H2 2022", km: 82460, status: "Disponible", maintenance: "Vidange dans 2 540 km", image: "/vehicles/master-3-l2h2.webp" },
-  { id: 2, plate: "FH-704-LP", label: "Renault Master III L2H2 2022", km: 116220, status: "Disponible", maintenance: "Contrôle technique dans 18 j", image: "/vehicles/master-3-l2h2.webp" },
-  { id: 3, plate: "GJ-391-RT", label: "Renault Master III L2H2 2022", km: 44710, status: "HS", maintenance: "Freinage à contrôler", image: "/vehicles/master-3-l2h2.webp" },
-  { id: 4, plate: "FT-866-CV", label: "Renault Master III L2H2 2022", km: 98730, status: "Disponible", maintenance: "À jour", image: "/vehicles/master-3-l2h2.webp" },
-  { id: 5, plate: "GN-143-BD", label: "Renault Master III L2H2 2022", km: 63490, status: "Disponible", maintenance: "Vidange dans 6 510 km", image: "/vehicles/master-3-l2h2.webp" },
-  { id: 6, plate: "GC-552-MZ", label: "Mercedes Sprinter W906", km: 137080, status: "HS", maintenance: "Diagnostic en cours", image: "/vehicles/sprinter-w906.webp" },
-  { id: 7, plate: "GA-842-QV", label: "Renault Master III L2H2 2022", km: 76240, status: "Disponible", maintenance: "À jour", image: "/vehicles/master-3-l2h2.webp" },
-  { id: 8, plate: "GB-317-XD", label: "Renault Master III L2H2 2022", km: 89120, status: "Disponible", maintenance: "Vidange dans 4 880 km", image: "/vehicles/master-3-l2h2.webp" },
-  { id: 9, plate: "GC-908-HR", label: "Renault Master III L2H2 2022", km: 71280, status: "Disponible", maintenance: "À jour", image: "/vehicles/master-3-l2h2.webp" },
-  { id: 10, plate: "GD-451-TK", label: "Renault Master III L2H2 2022", km: 103640, status: "Disponible", maintenance: "Contrôle technique dans 42 j", image: "/vehicles/master-3-l2h2.webp" },
-  { id: 11, plate: "GE-726-PS", label: "Renault Master III L2H2 2022", km: 68410, status: "Disponible", maintenance: "À jour", image: "/vehicles/master-3-l2h2.webp" },
-  { id: 12, plate: "GF-184-WM", label: "Renault Master III L2H2 2022", km: 93780, status: "Disponible", maintenance: "Pneus dans 3 000 km", image: "/vehicles/master-3-l2h2.webp" },
-  { id: 13, plate: "GG-639-KL", label: "Renault Master III L2H2 2022", km: 57950, status: "Disponible", maintenance: "À jour", image: "/vehicles/master-3-l2h2.webp" },
-  { id: 14, plate: "GH-275-VB", label: "Renault Master III L2H2 2022", km: 108330, status: "Disponible", maintenance: "Vidange dans 1 670 km", image: "/vehicles/master-3-l2h2.webp" },
-  { id: 15, plate: "GJ-814-FN", label: "Renault Master III L2H2 2022", km: 85760, status: "Disponible", maintenance: "À jour", image: "/vehicles/master-3-l2h2.webp" },
-  { id: 16, plate: "GK-396-CR", label: "Renault Master III L2H2 2022", km: 74190, status: "Disponible", maintenance: "Contrôle technique dans 63 j", image: "/vehicles/master-3-l2h2.webp" },
-  { id: 17, plate: "HA-423-JS", label: "Nissan Interstar 2025", km: 18420, status: "Disponible", maintenance: "À jour", image: "/vehicles/interstar-2025.webp" },
-  { id: 18, plate: "HB-758-NQ", label: "Nissan Interstar 2025", km: 16380, status: "Disponible", maintenance: "À jour", image: "/vehicles/interstar-2025.webp" },
-  { id: 19, plate: "HC-291-ZL", label: "Nissan Interstar 2025", km: 21970, status: "Disponible", maintenance: "Révision dans 8 030 km", image: "/vehicles/interstar-2025.webp" },
-  { id: 20, plate: "HD-645-BT", label: "Nissan Interstar 2025", km: 14260, status: "Disponible", maintenance: "À jour", image: "/vehicles/interstar-2025.webp" },
-  { id: 21, plate: "HE-873-MC", label: "Nissan Interstar 2025", km: 19640, status: "Disponible", maintenance: "À jour", image: "/vehicles/interstar-2025.webp" },
-  { id: 22, plate: "HF-316-RP", label: "Nissan Interstar 2025", km: 12780, status: "Disponible", maintenance: "À jour", image: "/vehicles/interstar-2025.webp" },
-  { id: 23, plate: "EV-482-DH", label: "Renault Trafic 2018", km: 148630, status: "Disponible", maintenance: "Vidange dans 1 370 km", image: "/vehicles/trafic-2018.webp" },
-  { id: 24, plate: "EX-719-KM", label: "Renault Trafic 2018", km: 132540, status: "Disponible", maintenance: "Contrôle technique dans 27 j", image: "/vehicles/trafic-2018.webp" },
-  { id: 25, plate: "HG-954-SV", label: "Fiat Ducato 2025", km: 17320, status: "Disponible", maintenance: "À jour", image: "/vehicles/ducato-2025.webp" },
+const operationCategories = [
+  "Entretien",
+  "Réglementaire",
+  "Pneumatiques",
+  "Freinage",
+  "Éclairage",
+  "Mécanique",
+  "Électricité",
+  "Équipement",
+  "Signalement",
+  "Urgent",
 ];
 
 const roleLabels: Record<Role, string> = {
@@ -191,57 +183,6 @@ const issueCategories = [
 
 const totalCheckCount = checkItems.length + 5;
 
-const issueSeed: Issue[] = [
-  { id: 1, vehicle: "GJ-391-RT", title: "Bruit important au freinage", meta: "Signalé aujourd'hui à 07:42 · Lucas M.", urgent: true, done: false, source: "report" },
-  { id: 2, vehicle: "FH-704-LP", title: "Voyant moteur intermittent", meta: "Signalé hier à 16:18 · Sarah D.", urgent: false, done: false, source: "report" },
-  { id: 3, vehicle: "GA-218-NK", title: "Éclairage arrière droit", meta: "Traité le 14 août · Thomas B.", urgent: false, done: true, source: "report" },
-];
-
-const operationsSeed: Record<number, Operation[]> = {
-  1: [
-    { id: "1-1", title: "Vidange moteur", category: "Entretien", detail: "Prévue à 85 000 km · tous les 20 000 km", done: false, dueKm: 85000, recurrenceKm: 20000 },
-    { id: "1-2", title: "Contrôle technique", category: "Réglementaire", detail: "À réaliser avant le 12 septembre 2026 · renouvellement 24 mois", done: false, dueDate: "2026-09-12", recurrenceMonths: 24 },
-    { id: "1-3", title: "Ampoule arrière droite", category: "Éclairage", detail: "Réalisée le 14 août à 82 210 km", done: true, completedBy: "Thomas Bernard" },
-    { id: "1-4", title: "Remplacement des pneus avant", category: "Pneumatiques", detail: "Réalisé le 22 juin à 78 430 km", done: true, completedBy: "Thomas Bernard" },
-  ],
-  2: [
-    { id: "2-1", title: "Diagnostiquer le voyant moteur", category: "Signalement", detail: "Signalé le 14 août par Sarah D.", done: false },
-    { id: "2-2", title: "Contrôle technique", category: "Réglementaire", detail: "À réaliser avant le 2 septembre 2026 · renouvellement 24 mois", done: false, dueDate: "2026-09-02", recurrenceMonths: 24 },
-    { id: "2-3", title: "Révision complète", category: "Entretien", detail: "Réalisée le 18 juillet à 111 870 km", done: true, completedBy: "Marc Petit" },
-  ],
-  3: [
-    { id: "3-1", title: "Contrôler le système de freinage", category: "Urgent", detail: "Véhicule HS · signalé aujourd'hui à 07:42", done: false },
-    { id: "3-2", title: "Remplacement des plaquettes arrière", category: "Freinage", detail: "Réalisé le 4 avril à 38 920 km", done: true, completedBy: "Thomas Bernard" },
-    { id: "3-3", title: "Vidange moteur", category: "Entretien", detail: "Réalisée le 8 février à 30 170 km", done: true, completedBy: "Marc Petit" },
-  ],
-  4: [
-    { id: "4-1", title: "Permutation des pneumatiques", category: "Pneumatiques", detail: "À prévoir avant 100 000 km", done: false },
-    { id: "4-2", title: "Vidange moteur", category: "Entretien", detail: "Réalisée le 29 juillet à 96 420 km", done: true, completedBy: "Thomas Bernard" },
-    { id: "4-3", title: "Remplacement essuie-glaces", category: "Équipement", detail: "Réalisé le 3 juin à 89 110 km", done: true, completedBy: "Marc Petit" },
-  ],
-  5: [
-    { id: "5-1", title: "Vidange moteur", category: "Entretien", detail: "Prévue à 70 000 km · tous les 20 000 km", done: false, dueKm: 70000, recurrenceKm: 20000 },
-    { id: "5-2", title: "Contrôle des niveaux", category: "Entretien", detail: "Réalisé le 11 août à 63 120 km", done: true, completedBy: "Thomas Bernard" },
-    { id: "5-3", title: "Remplacement batterie", category: "Électricité", detail: "Réalisé le 16 janvier à 51 840 km", done: true, completedBy: "Marc Petit" },
-  ],
-  6: [
-    { id: "6-1", title: "Finaliser le diagnostic moteur", category: "Urgent", detail: "Véhicule HS · diagnostic en cours", done: false },
-    { id: "6-2", title: "Contrôle technique dépassé", category: "Réglementaire", detail: "Échéance dépassée depuis le 8 août 2026", done: false },
-    { id: "6-3", title: "Remplacement courroie accessoires", category: "Mécanique", detail: "Réalisé le 20 mai à 128 400 km", done: true, completedBy: "Thomas Bernard" },
-  ],
-};
-
-const weeklyChecksSeed: WeeklyCheck[] = [
-  { name: "Lucas Martin", initials: "LM", vehicle: "GA-218-NK", done: true, detail: "Lundi à 07:16" },
-  { name: "Sarah Dupont", initials: "SD", vehicle: "FH-704-LP", done: true, detail: "Mardi à 06:58" },
-  { name: "Mehdi Laurent", initials: "ML", vehicle: "FT-866-CV", done: true, detail: "Mercredi à 07:24" },
-  { name: "Nina Robert", initials: "NR", vehicle: "GN-143-BD", done: true, detail: "Jeudi à 08:03" },
-  { name: "Julien Morel", initials: "JM", vehicle: "—", done: false, detail: "Pas encore réalisé" },
-  { name: "Emma Garcia", initials: "EG", vehicle: "—", done: false, detail: "Pas encore réalisé" },
-  { name: "Hugo Leroy", initials: "HL", vehicle: "—", done: false, detail: "Pas encore réalisé" },
-  { name: "Chloé Michel", initials: "CM", vehicle: "—", done: false, detail: "Pas encore réalisé" },
-];
-
 function formatKm(value: number) {
   return `${new Intl.NumberFormat("fr-FR").format(value)} km`;
 }
@@ -271,10 +212,10 @@ export default function Home() {
   const [saving, setSaving] = useState(false);
   const [initializing, setInitializing] = useState(true);
   const [screen, setScreen] = useState<Screen>("home");
-  const [selectedVehicleId, setSelectedVehicleId] = useState(1);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [vehicleFilter, setVehicleFilter] = useState<VehicleFilter>("all");
-  const [mileage, setMileage] = useState("82460");
+  const [mileage, setMileage] = useState("");
   const [checks, setChecks] = useState<Record<string, string>>({});
   const [checkNotes, setCheckNotes] = useState<Record<string, string>>({});
   const [padThickness, setPadThickness] = useState<Record<"front" | "rear", string>>({ front: "", rear: "" });
@@ -284,16 +225,20 @@ export default function Home() {
   const [controlComment, setControlComment] = useState("");
   const [damagePhotos, setDamagePhotos] = useState<Record<string, PhotoPreview>>({});
   const [reportCategory, setReportCategory] = useState("");
-  const [reportMileage, setReportMileage] = useState("82460");
+  const [reportMileage, setReportMileage] = useState("");
   const [reportDescription, setReportDescription] = useState("");
   const [reportPhotos, setReportPhotos] = useState<PhotoPreview[]>([]);
   const [reportUrgent, setReportUrgent] = useState(false);
-  const [fleetVehicles, setFleetVehicles] = useState(vehicles);
-  const [issues, setIssues] = useState(issueSeed);
-  const [operations, setOperations] = useState(operationsSeed);
-  const [weeklyChecks, setWeeklyChecks] = useState(weeklyChecksSeed);
+  const [fleetVehicles, setFleetVehicles] = useState<Vehicle[]>([]);
+  const [issues, setIssues] = useState<Issue[]>([]);
+  const [operations, setOperations] = useState<Record<number, Operation[]>>({});
+  const [weeklyChecks, setWeeklyChecks] = useState<WeeklyCheck[]>([]);
+  const [vehicleWeeklyHistory, setVehicleWeeklyHistory] = useState<Record<number, VehicleWeeklyHistory[]>>({});
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
+  const [todayLabel, setTodayLabel] = useState("");
+  const [weekLabel, setWeekLabel] = useState("");
   const [teamUsers, setTeamUsers] = useState<TeamUser[]>([]);
+  const [teamLoading, setTeamLoading] = useState(false);
   const [newVehiclePlate, setNewVehiclePlate] = useState("");
   const [newVehicleLabel, setNewVehicleLabel] = useState("");
   const [newVehicleKm, setNewVehicleKm] = useState("");
@@ -306,10 +251,18 @@ export default function Home() {
   const [workTitle, setWorkTitle] = useState("");
   const [workMileage, setWorkMileage] = useState("");
   const [workComment, setWorkComment] = useState("");
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleTitle, setScheduleTitle] = useState("");
+  const [scheduleCategory, setScheduleCategory] = useState(operationCategories[0]);
+  const [scheduleDetail, setScheduleDetail] = useState("");
+  const [scheduleDueKm, setScheduleDueKm] = useState("");
+  const [scheduleDueDate, setScheduleDueDate] = useState("");
+  const [scheduleRecurrenceKm, setScheduleRecurrenceKm] = useState("");
+  const [scheduleRecurrenceMonths, setScheduleRecurrenceMonths] = useState("");
   const [toast, setToast] = useState("");
 
-  const selectedVehicle = fleetVehicles.find((v) => v.id === selectedVehicleId) ?? fleetVehicles[0];
-  const selectedOperations = operations[selectedVehicle.id] ?? [];
+  const selectedVehicle = fleetVehicles.find((vehicle) => vehicle.id === selectedVehicleId) ?? fleetVehicles[0];
+  const selectedOperations = selectedVehicle ? (operations[selectedVehicle.id] ?? []) : [];
   const activeWorkOperation = workEntry?.kind === "operation"
     ? (operations[workEntry.vehicleId] ?? []).find((operation) => operation.id === workEntry.operationId)
     : undefined;
@@ -341,13 +294,18 @@ export default function Home() {
     const vehicle = fleetVehicles.find((item) => item.id === operation.vehicleId);
     return vehicle && isMaintenanceActionable(operation, vehicle.km);
   });
-  const selectedActionableOperations = selectedOperations.filter((operation) => isMaintenanceActionable(operation, selectedVehicle.km));
-  const selectedPendingIssues = issues.filter((issue) => issue.vehicle === selectedVehicle.plate && !issue.done);
+  const selectedActionableOperations = selectedVehicle
+    ? selectedOperations.filter((operation) => isMaintenanceActionable(operation, selectedVehicle.km))
+    : [];
+  const selectedPendingIssues = selectedVehicle
+    ? issues.filter((issue) => issue.vehicle === selectedVehicle.plate && !issue.done)
+    : [];
   const selectedCurrentWorkCount = selectedActionableOperations.length + selectedPendingIssues.length;
   const periodicPending = actionableMaintenance.filter((operation) => operation.recurrenceKm || operation.recurrenceMonths);
   const periodicCompleted = Object.entries(operations).flatMap(([vehicleId, vehicleOperations]) =>
     vehicleOperations.filter((operation) => operation.done && (operation.recurrenceKm || operation.recurrenceMonths)).map((operation) => ({ ...operation, vehicleId: Number(vehicleId) })),
   );
+  const selectedWeeklyHistory = selectedVehicle ? (vehicleWeeklyHistory[selectedVehicle.id] ?? []) : [];
   const queueTodoCount = issues.filter((issue) => !issue.done).length + periodicPending.length;
   const completedWeeklyCount = weeklyChecks.filter((check) => check.done).length;
   const weeklyCompletionPercent = weeklyChecks.length ? Math.round((completedWeeklyCount / weeklyChecks.length) * 100) : 0;
@@ -381,17 +339,33 @@ export default function Home() {
   }
 
   async function loadState() {
-    const data = await apiRequest<{ vehicles: Vehicle[]; issues: Issue[]; operations: Record<number, Operation[]>; weeklyChecks: WeeklyCheck[]; recentActivity: RecentActivity[] }>("/api/state");
+    const data = await apiRequest<{
+      vehicles: Vehicle[];
+      issues: Issue[];
+      operations: Record<number, Operation[]>;
+      weeklyChecks: WeeklyCheck[];
+      vehicleWeeklyHistory: Record<number, VehicleWeeklyHistory[]>;
+      recentActivity: RecentActivity[];
+      todayLabel: string;
+      weekLabel: string;
+    }>("/api/state");
     setFleetVehicles(data.vehicles);
     setIssues(data.issues);
     setOperations(data.operations);
     setWeeklyChecks(data.weeklyChecks);
+    setVehicleWeeklyHistory(data.vehicleWeeklyHistory);
     setRecentActivity(data.recentActivity);
+    setTodayLabel(data.todayLabel);
+    setWeekLabel(data.weekLabel);
     const selected = data.vehicles.find((vehicle) => vehicle.id === selectedVehicleId) ?? data.vehicles[0];
     if (selected) {
       setSelectedVehicleId(selected.id);
       setMileage(String(selected.km));
       setReportMileage(String(selected.km));
+    } else {
+      setSelectedVehicleId(null);
+      setMileage("");
+      setReportMileage("");
     }
   }
 
@@ -418,6 +392,13 @@ export default function Home() {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
   }, [screen, loggedIn, role]);
+
+  useEffect(() => {
+    if (!loggedIn || screen !== "team" || role !== "chef") return;
+    void loadTeam().catch(() => showToast("Impossible de charger l'équipe"));
+    // Team data is loaded when the chef opens the administration screen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loggedIn, screen, role]);
 
   function showToast(message: string) {
     setToast(message);
@@ -462,7 +443,7 @@ export default function Home() {
   }
 
   async function submitWeeklyControl() {
-    if (!controlReady || saving) return;
+    if (!controlReady || saving || !selectedVehicle) return;
     setSaving(true);
     try {
       const form = new FormData();
@@ -497,14 +478,14 @@ export default function Home() {
 
   function resetProblemReport() {
     setReportCategory("");
-    setReportMileage(String(selectedVehicle.km));
+    setReportMileage(selectedVehicle ? String(selectedVehicle.km) : "");
     setReportDescription("");
     setReportPhotos([]);
     setReportUrgent(false);
   }
 
   async function submitProblemReport() {
-    if (!reportReady || saving) return;
+    if (!reportReady || saving || !selectedVehicle) return;
     setSaving(true);
     try {
       const form = new FormData();
@@ -558,7 +539,7 @@ export default function Home() {
   }
 
   async function submitMileage() {
-    if (!mileage.trim() || saving) return;
+    if (!mileage.trim() || saving || !selectedVehicle) return;
     setSaving(true);
     try {
       await apiRequest("/api/mileage", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ vehicleId: selectedVehicle.id, mileage: Number(mileage) }) });
@@ -603,6 +584,57 @@ export default function Home() {
     setWorkComment("");
   }
 
+  function openScheduleForm() {
+    if (!selectedVehicle) return;
+    setScheduleTitle("");
+    setScheduleCategory(operationCategories[0]);
+    setScheduleDetail("");
+    setScheduleDueKm("");
+    setScheduleDueDate("");
+    setScheduleRecurrenceKm("");
+    setScheduleRecurrenceMonths("");
+    setScheduleOpen(true);
+  }
+
+  function closeScheduleForm() {
+    setScheduleOpen(false);
+  }
+
+  const scheduleReady = Boolean(
+    selectedVehicle
+    && scheduleTitle.trim()
+    && scheduleCategory
+    && (scheduleDueKm.trim() || scheduleDueDate || scheduleRecurrenceKm.trim() || scheduleRecurrenceMonths.trim()),
+  );
+
+  async function submitScheduledOperation() {
+    if (!scheduleReady || !selectedVehicle || saving) return;
+    setSaving(true);
+    try {
+      await apiRequest("/api/operations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vehicleId: selectedVehicle.id,
+          title: scheduleTitle.trim(),
+          category: scheduleCategory,
+          detail: scheduleDetail.trim() || undefined,
+          dueKm: scheduleDueKm.trim() ? Number(scheduleDueKm) : undefined,
+          dueDate: scheduleDueDate || undefined,
+          recurrenceKm: scheduleRecurrenceKm.trim() ? Number(scheduleRecurrenceKm) : undefined,
+          recurrenceMonths: scheduleRecurrenceMonths.trim() ? Number(scheduleRecurrenceMonths) : undefined,
+        }),
+      });
+      await loadState();
+      showToast("Opération planifiée");
+      closeScheduleForm();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Planification impossible");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function changeWorkVehicle(vehicleId: number) {
     const vehicle = fleetVehicles.find((item) => item.id === vehicleId);
     if (!workEntry || !vehicle) return;
@@ -630,7 +662,7 @@ export default function Home() {
   }
 
   async function toggleVehicleStatus() {
-    if (saving) return;
+    if (!selectedVehicle || saving) return;
     const nextStatus: Vehicle["status"] = selectedVehicle.status === "HS" ? "Disponible" : "HS";
     setSaving(true);
     try {
@@ -645,8 +677,13 @@ export default function Home() {
   }
 
   async function loadTeam() {
-    const data = await apiRequest<{ users: TeamUser[] }>("/api/users");
-    setTeamUsers(data.users);
+    setTeamLoading(true);
+    try {
+      const data = await apiRequest<{ users: TeamUser[] }>("/api/users");
+      setTeamUsers(data.users);
+    } finally {
+      setTeamLoading(false);
+    }
   }
 
   async function submitNewVehicle() {
@@ -694,7 +731,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newUserName, role: newUserRole, pin: newUserPin }),
       });
-      await loadTeam();
+      await Promise.all([loadTeam(), loadState()]);
       setNewUserName("");
       setNewUserPin("");
       setNewUserRole("salarie");
@@ -713,10 +750,10 @@ export default function Home() {
       await apiRequest(`/api/users/${target.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ active: !target.active }),
+        body: JSON.stringify({ active: !Boolean(target.active) }),
       });
-      await loadTeam();
-      showToast(target.active ? "Compte désactivé" : "Compte réactivé");
+      await Promise.all([loadTeam(), loadState()]);
+      showToast(Boolean(target.active) ? "Compte désactivé" : "Compte réactivé");
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Modification impossible");
     } finally {
@@ -754,7 +791,7 @@ export default function Home() {
             <h1>Le parc,<br />simplement.</h1>
             <p>Contrôlez, signalez et suivez vos véhicules depuis le terrain.</p>
           </div>
-          <div className="brand-stats"><span><strong>25</strong> utilitaires</span><span><strong>2</strong> statuts simples</span></div>
+          <div className="brand-stats"><span><strong>Flotte</strong> connectée</span><span><strong>3</strong> profils terrain</span></div>
         </section>
 
         <section className="login-panel">
@@ -825,7 +862,7 @@ export default function Home() {
         <section className="app-content">
           <header className="topbar">
             <div>
-              <p className="eyebrow">Samedi 15 août</p>
+              <p className="eyebrow">{todayLabel || "Aujourd'hui"}</p>
               <h1>{titles[screen]}</h1>
             </div>
             <div className="topbar-actions">
@@ -847,7 +884,11 @@ export default function Home() {
           <div className="screen-area">
             {screen === "home" && (
               <div className="screen-stack">
-                <section className="mobile-heading"><p className="eyebrow">Samedi 15 août</p><h1>Bonjour {currentUser?.name.split(" ")[0] ?? "Lucas"}</h1><p>Quel véhicule utilisez-vous aujourd'hui ?</p></section>
+                {!selectedVehicle ? (
+                  <section className="panel"><p className="empty-state">Aucun véhicule disponible pour le moment.</p></section>
+                ) : (
+                  <>
+                <section className="mobile-heading"><p className="eyebrow">{todayLabel || "Aujourd'hui"}</p><h1>Bonjour {currentUser?.name.split(" ")[0] ?? "Lucas"}</h1><p>Quel véhicule utilisez-vous aujourd'hui ?</p></section>
 
                 <section className="current-vehicle-card">
                   <div className="vehicle-card-copy">
@@ -870,6 +911,8 @@ export default function Home() {
                 </section>
 
                 <section className="info-strip"><span className="info-icon">i</span><div><strong>Pas d'affectation dans l'application</strong><p>Vous pouvez changer librement de véhicule. Cette sélection sert uniquement à afficher sa fiche.</p></div></section>
+                  </>
+                )}
               </div>
             )}
 
@@ -894,7 +937,7 @@ export default function Home() {
               </div>
             )}
 
-            {screen === "vehicle" && (
+            {screen === "vehicle" && selectedVehicle && (
               <div className="screen-stack">
                 <button className="back-link vehicle-back" onClick={() => setScreen("vehicles")}>← Retour aux véhicules</button>
                 <section className="vehicle-detail-hero">
@@ -913,6 +956,7 @@ export default function Home() {
                     </div>
                     <div className="vehicle-action-buttons">
                       <button className="hero-outline-button" onClick={() => openWorkForm({ kind: "new", vehicleId: selectedVehicle.id })}>＋ Opération réalisée</button>
+                      {(role === "mecano" || role === "chef") && <button className="hero-outline-button" onClick={openScheduleForm}>＋ Planifier une opération</button>}
                       <button className={`hero-status-button ${selectedVehicle.status === "HS" ? "available" : "danger"}`} disabled={saving} onClick={toggleVehicleStatus}>{saving ? "Enregistrement…" : selectedVehicle.status === "HS" ? "Remettre disponible" : "Passer en HS"}</button>
                     </div>
                   </div>
@@ -955,10 +999,10 @@ export default function Home() {
                           <div><span className="history-type">{issue.source === "weekly" ? "Contrôle hebdo" : "Signalement"} · {issue.done ? "Fait" : "À faire"}</span><h3>{issue.title}</h3><p>{issue.meta}</p>{issue.photos && issue.photos.length > 0 && <div className="history-photos">{issue.photos.map((photo, index) => <img key={`${photo.name}-${index}`} src={photo.url} alt={`Photo du signalement ${index + 1}`} />)}</div>}</div>
                         </article>
                       ))}
-                      {!hideWeeklyControls && weeklyChecks.filter((check) => check.done && check.vehicle === selectedVehicle.plate).map((check) => (
-                        <article className="history-entry check-entry" key={`check-${check.name}`}>
+                      {!hideWeeklyControls && selectedWeeklyHistory.map((check) => (
+                        <article className="history-entry check-entry" key={`check-${check.id}`}>
                           <span className="history-symbol check">✓</span>
-                          <div><span className="history-type">Contrôle hebdomadaire</span><h3>Contrôle réalisé par {check.name}</h3><p>{check.detail} · aucune anomalie bloquante</p></div>
+                          <div><span className="history-type">Contrôle hebdomadaire</span><h3>Contrôle réalisé par {check.person}</h3><p>{check.detail}</p>{check.photos.length > 0 && <div className="history-photos">{check.photos.map((photo, index) => <img key={`${photo.name}-${index}`} src={photo.url} alt={`Photo du contrôle ${index + 1}`} />)}</div>}</div>
                         </article>
                       ))}
                     </div>
@@ -967,7 +1011,7 @@ export default function Home() {
               </div>
             )}
 
-            {screen === "mileage" && (
+            {screen === "mileage" && selectedVehicle && (
               <div className="narrow-screen">
                 <button className="back-link" onClick={() => setScreen("home")}>← Retour</button>
                 <section className="form-card">
@@ -981,7 +1025,7 @@ export default function Home() {
               </div>
             )}
 
-            {screen === "check" && (
+            {screen === "check" && selectedVehicle && (
               <div className="narrow-screen wide-form">
                 <button className="back-link" onClick={() => setScreen("home")}>← Retour</button>
                 <section className="form-card">
@@ -1074,7 +1118,7 @@ export default function Home() {
               </div>
             )}
 
-            {screen === "report" && (
+            {screen === "report" && selectedVehicle && (
               <div className="narrow-screen wide-form">
                 <button className="back-link" onClick={() => setScreen("home")}>← Retour</button>
                 <section className="form-card report-card">
@@ -1114,7 +1158,7 @@ export default function Home() {
 
             {screen === "workshop" && (
               <div className="screen-stack">
-                <section className="workshop-lead"><div><p className="eyebrow">Vue mécanicien</p><h2>Atelier</h2><p>Problèmes, échéances et disponibilités au même endroit.</p></div><button className="primary-button compact-primary" onClick={() => openWorkForm({ kind: "new", vehicleId: selectedVehicle.id })}>＋ Enregistrer une opération</button></section>
+                <section className="workshop-lead"><div><p className="eyebrow">Vue mécanicien</p><h2>Atelier</h2><p>Problèmes, échéances et disponibilités au même endroit.</p></div><button className="primary-button compact-primary" disabled={!selectedVehicle} onClick={() => selectedVehicle && openWorkForm({ kind: "new", vehicleId: selectedVehicle.id })}>＋ Enregistrer une opération</button></section>
                 <div className="metric-grid"><Metric value={String(queueTodoCount)} label="Tâches à faire" tone="orange" /><Metric value={String(fleetVehicles.filter((vehicle) => vehicle.status === "HS").length)} label="Véhicules HS" tone="red" /><Metric value={String(pendingMaintenance.length)} label="Opérations prévues" tone="blue" /><Metric value={String(Object.values(operations).flat().filter((operation) => operation.done).length)} label="Opérations faites" tone="green" /></div>
                 <section className="panel workshop-issues">
                   <div className="section-title"><div><p className="eyebrow">File de travail</p><h2>Travaux à traiter</h2><p className="section-note">Signalements, pneus/freins du contrôle hebdo et opérations périodiques.</p></div><div className="filters compact-filters"><button className={issueFilter === "todo" ? "active" : ""} onClick={() => setIssueFilter("todo")}>À faire</button><button className={issueFilter === "done" ? "active" : ""} onClick={() => setIssueFilter("done")}>Fait</button></div></div>
@@ -1168,7 +1212,7 @@ export default function Home() {
                   <Metric value={`${completedWeeklyCount}/${weeklyChecks.length}`} label="Contrôles hebdo faits" tone="green" />                </div>
                 <section className="panel weekly-panel">
                   <div className="weekly-panel-head">
-                    <div><p className="eyebrow">Semaine du 10 au 16 août</p><h2>Contrôles hebdomadaires</h2><p>Suivi nominatif des salariés ayant réalisé leur contrôle.</p></div>
+                    <div><p className="eyebrow">{weekLabel || "Semaine en cours"}</p><h2>Contrôles hebdomadaires</h2><p>Suivi nominatif des salariés ayant réalisé leur contrôle.</p></div>
                     <div className="weekly-progress"><strong>{weeklyCompletionPercent}%</strong><span><i style={{ width: `${weeklyCompletionPercent}%` }} /></span><small>{completedWeeklyCount} contrôle{completedWeeklyCount > 1 ? "s" : ""} sur {weeklyChecks.length}</small></div>
                   </div>
                   <div className="weekly-grid">
@@ -1253,16 +1297,17 @@ export default function Home() {
                         <article className="history-entry" key={member.id}>
                           <span className="history-symbol check">{member.initials}</span>
                           <div>
-                            <span className="history-type">{roleLabels[member.role]}{!member.active && " · Désactivé"}</span>
+                            <span className="history-type">{roleLabels[member.role]}{!Boolean(member.active) && " · Désactivé"}</span>
                             <h3>{member.name}</h3>
                           </div>
                           <div style={{ display: "flex", gap: 8, alignSelf: "center" }}>
                             <button className="outline-button" disabled={saving} onClick={() => resetUserPin(member)}>Réinitialiser PIN</button>
-                            <button className="outline-button" disabled={saving} onClick={() => toggleUserActive(member)}>{member.active ? "Désactiver" : "Réactiver"}</button>
+                            <button className="outline-button" disabled={saving} onClick={() => toggleUserActive(member)}>{Boolean(member.active) ? "Désactiver" : "Réactiver"}</button>
                           </div>
                         </article>
                       ))}
-                      {teamUsers.length === 0 && <p className="empty-state">Chargement…</p>}
+                      {teamLoading && teamUsers.length === 0 && <p className="empty-state">Chargement…</p>}
+                      {!teamLoading && teamUsers.length === 0 && <p className="empty-state">Aucun compte trouvé.</p>}
                     </div>
                   </section>
                 </div>
@@ -1277,6 +1322,28 @@ export default function Home() {
           </nav>
         </section>
       </div>
+      {scheduleOpen && selectedVehicle && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeScheduleForm(); }}>
+          <section className="work-modal" role="dialog" aria-modal="true" aria-labelledby="schedule-modal-title">
+            <div className="work-modal-head"><div><p className="eyebrow">Planification atelier</p><h2 id="schedule-modal-title">Planifier une opération</h2></div><button aria-label="Fermer" onClick={closeScheduleForm}>×</button></div>
+            <p className="muted">Créez une échéance future pour {selectedVehicle.plate}. Elle apparaîtra dans les entretiens à surveiller.</p>
+            <div className="work-form-grid">
+              <label className="work-field"><span className="field-label">Titre *</span><input value={scheduleTitle} onChange={(event) => setScheduleTitle(event.target.value)} placeholder="Ex. Vidange moteur" /></label>
+              <label className="work-field"><span className="field-label">Catégorie *</span><select value={scheduleCategory} onChange={(event) => setScheduleCategory(event.target.value)}>{operationCategories.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
+            </div>
+            <label className="work-field"><span className="field-label">Détail</span><textarea rows={2} value={scheduleDetail} onChange={(event) => setScheduleDetail(event.target.value)} placeholder="Informations utiles pour l'atelier…" /></label>
+            <div className="work-form-grid">
+              <label className="work-field"><span className="field-label">Échéance km</span><div className="unit-input"><input inputMode="numeric" value={scheduleDueKm} onChange={(event) => setScheduleDueKm(event.target.value.replace(/\D/g, ""))} placeholder="Ex. 85000" /><span>km</span></div></label>
+              <label className="work-field"><span className="field-label">Échéance date</span><input type="date" value={scheduleDueDate} onChange={(event) => setScheduleDueDate(event.target.value)} /></label>
+            </div>
+            <div className="work-form-grid">
+              <label className="work-field"><span className="field-label">Récurrence km</span><div className="unit-input"><input inputMode="numeric" value={scheduleRecurrenceKm} onChange={(event) => setScheduleRecurrenceKm(event.target.value.replace(/\D/g, ""))} placeholder="Ex. 20000" /><span>km</span></div></label>
+              <label className="work-field"><span className="field-label">Récurrence mois</span><input inputMode="numeric" value={scheduleRecurrenceMonths} onChange={(event) => setScheduleRecurrenceMonths(event.target.value.replace(/\D/g, ""))} placeholder="Ex. 24" /></label>
+            </div>
+            <div className="form-actions"><button className="secondary-button" disabled={saving} onClick={closeScheduleForm}>Annuler</button><button className="primary-button" disabled={!scheduleReady || saving} onClick={submitScheduledOperation}>{saving ? "Enregistrement…" : "Planifier"}</button></div>
+          </section>
+        </div>
+      )}
       {workEntry && (
         <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeWorkForm(); }}>
           <section className="work-modal" role="dialog" aria-modal="true" aria-labelledby="work-modal-title">

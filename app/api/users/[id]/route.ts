@@ -15,12 +15,28 @@ export async function PATCH(request: Request) {
       if (id === user.id && !payload.active) {
         return Response.json({ error: "Vous ne pouvez pas désactiver votre propre compte." }, { status: 400 });
       }
-      await db.prepare("UPDATE users SET active = ? WHERE id = ?").bind(payload.active ? 1 : 0, id).run();
+      await db.prepare("UPDATE users SET active = ?, login_enabled = ? WHERE id = ?")
+        .bind(payload.active ? 1 : 0, payload.active ? 1 : 0, id)
+        .run();
+      if (!payload.active) {
+        await db.prepare("DELETE FROM sessions WHERE user_id = ?").bind(id).run();
+      }
     }
     if (payload.pin) {
       if (!/^\d{4,6}$/.test(payload.pin)) return Response.json({ error: "Code PIN invalide." }, { status: 400 });
+      const target = await db.prepare("SELECT role FROM users WHERE id = ?").bind(id).first<{ role: string }>();
+      if (!target) return Response.json({ error: "Utilisateur introuvable." }, { status: 404 });
       const pinHash = await hashPin(payload.pin);
-      await db.prepare("UPDATE users SET pin_hash = ? WHERE id = ?").bind(pinHash, id).run();
+      const duplicate = await db.prepare(`
+        SELECT id FROM users
+        WHERE role = ? AND pin_hash = ? AND active = 1 AND id != ?
+        LIMIT 1
+      `).bind(target.role, pinHash, id).first();
+      if (duplicate) {
+        return Response.json({ error: "Ce code PIN est déjà utilisé pour ce rôle." }, { status: 400 });
+      }
+      await db.prepare("UPDATE users SET pin_hash = ?, login_enabled = 1 WHERE id = ?").bind(pinHash, id).run();
+      await db.prepare("DELETE FROM sessions WHERE user_id = ?").bind(id).run();
     }
     return Response.json({ ok: true });
   } catch (error) {

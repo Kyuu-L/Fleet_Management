@@ -23,6 +23,7 @@ export const vehicles = sqliteTable("vehicles", {
   id: integer("id").primaryKey(),
   plate: text("plate").notNull(),
   label: text("label").notNull(),
+  modelId: text("model_id"),
   km: integer("km").notNull(),
   status: text("status").notNull().default("Disponible"),
   maintenance: text("maintenance").notNull().default("À jour"),
@@ -80,6 +81,19 @@ export const operations = sqliteTable("operations", {
   dueKm: integer("due_km"),
   dueDate: text("due_date"),
   sourceIssueId: integer("source_issue_id").references(() => issues.id),
+  planId: text("plan_id"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const maintenancePlans = sqliteTable("maintenance_plans", {
+  id: text("id").primaryKey(),
+  scope: text("scope").notNull(),
+  modelId: text("model_id"),
+  vehicleId: integer("vehicle_id").references(() => vehicles.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  category: text("category").notNull(),
+  recurrenceKm: integer("recurrence_km"),
+  recurrenceMonths: integer("recurrence_months"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 

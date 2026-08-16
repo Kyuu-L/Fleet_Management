@@ -29,9 +29,15 @@ function readCookie(request: Request, name: string) {
 export async function authenticateRole(role: string, pin: string) {
   await ensureDemoData();
   const db = getD1();
-  const user = await db.prepare("SELECT id, name, initials, role, pin_hash AS pinHash FROM users WHERE role = ? AND login_enabled = 1 AND active = 1 LIMIT 1").bind(role).first<AuthenticatedUser & { pinHash: string }>();
-  if (!user || user.pinHash !== await hashPin(pin)) return null;
-  return { id: user.id, name: user.name, initials: user.initials, role: user.role } satisfies AuthenticatedUser;
+  const pinHash = await hashPin(pin);
+  const user = await db.prepare(`
+    SELECT id, name, initials, role
+    FROM users
+    WHERE role = ? AND active = 1 AND pin_hash = ?
+    ORDER BY login_enabled DESC, id ASC
+    LIMIT 1
+  `).bind(role, pinHash).first<AuthenticatedUser>();
+  return user ?? null;
 }
 
 export async function createSession(userId: number) {

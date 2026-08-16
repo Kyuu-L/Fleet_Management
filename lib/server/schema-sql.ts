@@ -99,8 +99,28 @@ const schemaStatements = [
     created_at text DEFAULT CURRENT_TIMESTAMP NOT NULL
   )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS photos_object_key_unique ON photos (object_key)`,
+  `CREATE TABLE IF NOT EXISTS maintenance_plans (
+    id text PRIMARY KEY NOT NULL,
+    scope text NOT NULL,
+    model_id text,
+    vehicle_id integer,
+    title text NOT NULL,
+    category text NOT NULL,
+    recurrence_km integer,
+    recurrence_months integer,
+    created_at text DEFAULT CURRENT_TIMESTAMP NOT NULL
+  )`,
 ];
+
+async function ensureColumn(db: D1Database, table: string, column: string, definition: string) {
+  const info = await db.prepare(`PRAGMA table_info(${table})`).all<{ name: string }>();
+  if (!info.results.some((entry) => entry.name === column)) {
+    await db.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`).run();
+  }
+}
 
 export async function ensureSchema(db: D1Database) {
   await db.batch(schemaStatements.map((sql) => db.prepare(sql)));
+  await ensureColumn(db, "vehicles", "model_id", "text");
+  await ensureColumn(db, "operations", "plan_id", "text");
 }

@@ -31,6 +31,14 @@ export async function POST(request: Request) {
     const initials = name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "??";
     const pinHash = await hashPin(pin);
     const db = getD1();
+    const duplicate = await db.prepare(`
+      SELECT id FROM users
+      WHERE role = ? AND pin_hash = ? AND active = 1
+      LIMIT 1
+    `).bind(role, pinHash).first();
+    if (duplicate) {
+      return Response.json({ error: "Ce code PIN est déjà utilisé pour ce rôle." }, { status: 400 });
+    }
     const inserted = await db.prepare(
       "INSERT INTO users (name, initials, role, pin_hash, login_enabled, active) VALUES (?, ?, ?, ?, 1, 1) RETURNING id"
     ).bind(name, initials, role, pinHash).first<{ id: number }>();

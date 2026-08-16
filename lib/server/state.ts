@@ -1,4 +1,6 @@
 import { getD1 } from "@/db";
+import { currentWeekLabel, todayLabel } from "./dates";
+import { computeMaintenanceLabel } from "./maintenance-label";
 import { ensureDemoData } from "./seed";
 
 type VehicleRow = {
@@ -7,7 +9,6 @@ type VehicleRow = {
   label: string;
   km: number;
   status: "Disponible" | "HS";
-  maintenance: string;
   image: string;
 };
 
@@ -50,6 +51,13 @@ type ActivityRow = {
   occurredAt: string;
 };
 
+type WeeklyHistoryRow = {
+  id: number;
+  vehicleId: number;
+  person: string;
+  createdAt: string;
+};
+
 function dateLabel(value: string, includeTime = false) {
   const date = new Date(value);
   const datePart = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" }).format(date);
@@ -77,8 +85,9 @@ function activityTime(value: string) {
 export async function readApplicationState() {
   await ensureDemoData();
   const db = getD1();
-  const [vehicleResult, issueResult, operationResult, photoResult, employeeResult, controlResult, activityResult] = await Promise.all([
-    db.prepare("SELECT id, plate, label, km, status, maintenance, image FROM vehicles ORDER BY id").all<VehicleRow>(),
+  const now = new Date();
+  const [vehicleResult, issueResult, operationResult, photoResult, employeeResult, controlResult, historyResult, activityResult] = await Promise.all([
+    db.prepare("SELECT id, plate, label, km, status, image FROM vehicles ORDER BY id").all<VehicleRow>(),
     db.prepare(`
       SELECT i.id, v.plate, i.category, i.title, i.description, i.mileage, i.urgent, i.status, i.source,
              i.created_at AS createdAt, u.name AS createdBy
@@ -94,7 +103,12 @@ export async function readApplicationState() {
       FROM operations
       ORDER BY created_at DESC, id DESC
     `).all<OperationRow>(),
-    db.prepare("SELECT id, owner_id AS ownerId, filename, position FROM photos WHERE owner_type = 'issue' ORDER BY position, id").all<{ id: number; ownerId: number; filename: string; position: number }>(),
+    db.prepare(`
+      SELECT id, owner_type AS ownerType, owner_id AS ownerId, filename, position
+      FROM photos
+      WHERE owner_type IN ('issue', 'weekly_control')
+      ORDER BY position, id
+    `).all<{ id: number; ownerType: "issue" | "weekly_control"; ownerId: number; filename: string; position: number }>(),
     db.prepare("SELECT id, name, initials FROM users WHERE role = 'salarie' AND active = 1 ORDER BY id").all<{ id: number; name: string; initials: string }>(),
     db.prepare(`
       SELECT wc.user_id AS userId, v.plate, wc.created_at AS createdAt
@@ -103,6 +117,12 @@ export async function readApplicationState() {
       WHERE wc.created_at >= ?
       ORDER BY wc.created_at DESC
     `).bind(mondayIso()).all<{ userId: number; plate: string; createdAt: string }>(),
+    db.prepare(`
+      SELECT wc.id, wc.vehicle_id AS vehicleId, u.name AS person, wc.created_at AS createdAt
+      FROM weekly_controls wc
+      JOIN users u ON u.id = wc.user_id
+      ORDER BY wc.created_at DESC
+    `).all<WeeklyHistoryRow>(),
     db.prepare(`
       SELECT 'issue-' || i.id AS id, 'issue' AS kind, v.plate, u.name AS person,
              datetime(i.created_at) AS occurredAt
@@ -130,10 +150,12 @@ export async function readApplicationState() {
   ]);
 
   const issuePhotos = new Map<number, Array<{ name: string; url: string }>>();
+  const weeklyPhotos = new Map<number, Array<{ name: string; url: string }>>();
   for (const photo of photoResult.results) {
-    const list = issuePhotos.get(photo.ownerId) ?? [];
+    const list = (photo.ownerType === "issue" ? issuePhotos : weeklyPhotos).get(photo.ownerId) ?? [];
     list.push({ name: photo.filename, url: `/api/photos/${photo.id}` });
-    issuePhotos.set(photo.ownerId, list);
+    if (photo.ownerType === "issue") issuePhotos.set(photo.ownerId, list);
+    else weeklyPhotos.set(photo.ownerId, list);
   }
 
   const issues = issueResult.results.map((issue) => ({
@@ -168,6 +190,22 @@ export async function readApplicationState() {
     operations[operation.vehicleId] = list;
   }
 
+  const vehicles = vehicleResult.results.map((vehicle) => ({
+    ...vehicle,
+    maintenance: computeMaintenanceLabel(
+      vehicle.km,
+      vehicle.status,
+      (operations[vehicle.id] ?? []).map((operation) => ({
+        title: String(operation.title),
+        category: String(operation.category),
+        done: Boolean(operation.done),
+        dueKm: typeof operation.dueKm === "number" ? operation.dueKm : null,
+        dueDate: typeof operation.dueDate === "string" ? operation.dueDate : null,
+      })),
+      now,
+    ),
+  }));
+
   const latestControls = new Map<number, { plate: string; createdAt: string }>();
   for (const control of controlResult.results) {
     if (!latestControls.has(control.userId)) latestControls.set(control.userId, { plate: control.plate, createdAt: control.createdAt });
@@ -182,6 +220,18 @@ export async function readApplicationState() {
       detail: control ? dateLabel(control.createdAt, true) : "Pas encore réalisé",
     };
   });
+
+  const vehicleWeeklyHistory: Record<number, Array<{ id: number; person: string; detail: string; photos: Array<{ name: string; url: string }> }>> = {};
+  for (const entry of historyResult.results) {
+    const list = vehicleWeeklyHistory[entry.vehicleId] ?? [];
+    list.push({
+      id: entry.id,
+      person: entry.person,
+      detail: dateLabel(entry.createdAt, true),
+      photos: weeklyPhotos.get(entry.id) ?? [],
+    });
+    vehicleWeeklyHistory[entry.vehicleId] = list;
+  }
 
   const activityTitles: Record<ActivityRow["kind"], string> = {
     issue: "Problème signalé",
@@ -198,5 +248,14 @@ export async function readApplicationState() {
     time: activityTime(activity.occurredAt),
   }));
 
-  return { vehicles: vehicleResult.results, issues, operations, weeklyChecks, recentActivity };
+  return {
+    vehicles,
+    issues,
+    operations,
+    weeklyChecks,
+    vehicleWeeklyHistory,
+    recentActivity,
+    todayLabel: todayLabel(now),
+    weekLabel: currentWeekLabel(now),
+  };
 }
