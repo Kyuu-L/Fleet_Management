@@ -1,4 +1,6 @@
 import { getD1 } from "@/db";
+import { ensureSchema } from "./schema-sql";
+
 
 const demoUsers = [
   [1, "Lucas Martin", "LM", "salarie", "0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c", 1],
@@ -79,6 +81,7 @@ function mondayOfCurrentWeek() {
 
 export async function ensureDemoData() {
   const db = getD1();
+  await ensureSchema(db);
   const existing = await db.prepare("SELECT COUNT(*) AS count FROM users").first<{ count: number }>();
   if (Number(existing?.count ?? 0) > 0) return;
 
