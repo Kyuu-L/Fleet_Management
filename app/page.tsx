@@ -16,7 +16,10 @@ type Screen =
   | "report"
   | "workshop"
   | "maintenance"
-  | "fleet";
+  | "fleet"
+  | "team";
+
+type TeamUser = { id: number; name: string; initials: string; role: Role; loginEnabled: number; active: number };
 
 type Vehicle = {
   id: number;
@@ -284,11 +287,19 @@ export default function Home() {
   const [reportMileage, setReportMileage] = useState("82460");
   const [reportDescription, setReportDescription] = useState("");
   const [reportPhotos, setReportPhotos] = useState<PhotoPreview[]>([]);
+  const [reportUrgent, setReportUrgent] = useState(false);
   const [fleetVehicles, setFleetVehicles] = useState(vehicles);
   const [issues, setIssues] = useState(issueSeed);
   const [operations, setOperations] = useState(operationsSeed);
   const [weeklyChecks, setWeeklyChecks] = useState(weeklyChecksSeed);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
+  const [teamUsers, setTeamUsers] = useState<TeamUser[]>([]);
+  const [newVehiclePlate, setNewVehiclePlate] = useState("");
+  const [newVehicleLabel, setNewVehicleLabel] = useState("");
+  const [newVehicleKm, setNewVehicleKm] = useState("");
+  const [newUserName, setNewUserName] = useState("");
+  const [newUserRole, setNewUserRole] = useState<Role>("salarie");
+  const [newUserPin, setNewUserPin] = useState("");
   const [issueFilter, setIssueFilter] = useState<"todo" | "done">("todo");
   const [hideWeeklyControls, setHideWeeklyControls] = useState(false);
   const [workEntry, setWorkEntry] = useState<WorkEntry | null>(null);
@@ -489,6 +500,7 @@ export default function Home() {
     setReportMileage(String(selectedVehicle.km));
     setReportDescription("");
     setReportPhotos([]);
+    setReportUrgent(false);
   }
 
   async function submitProblemReport() {
@@ -496,7 +508,7 @@ export default function Home() {
     setSaving(true);
     try {
       const form = new FormData();
-      form.append("payload", JSON.stringify({ vehicleId: selectedVehicle.id, category: reportCategory, mileage: Number(reportMileage), description: reportDescription }));
+      form.append("payload", JSON.stringify({ vehicleId: selectedVehicle.id, category: reportCategory, mileage: Number(reportMileage), description: reportDescription, urgent: reportUrgent }));
       for (const photo of reportPhotos) if (photo.file) form.append("photos", photo.file, photo.name);
       const result = await apiRequest<{ photoCount: number }>("/api/issues", { method: "POST", body: form });
       await loadState();
@@ -632,6 +644,106 @@ export default function Home() {
     }
   }
 
+  async function loadTeam() {
+    const data = await apiRequest<{ users: TeamUser[] }>("/api/users");
+    setTeamUsers(data.users);
+  }
+
+  async function submitNewVehicle() {
+    if (saving || !newVehiclePlate.trim() || !newVehicleLabel.trim() || !newVehicleKm.trim()) return;
+    setSaving(true);
+    try {
+      await apiRequest("/api/vehicles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plate: newVehiclePlate, label: newVehicleLabel, km: Number(newVehicleKm) }),
+      });
+      await loadState();
+      setNewVehiclePlate("");
+      setNewVehicleLabel("");
+      setNewVehicleKm("");
+      showToast("Véhicule ajouté au parc");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Ajout impossible");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteVehicle(vehicleId: number, plate: string) {
+    if (saving) return;
+    if (!window.confirm(`Supprimer définitivement ${plate} et tout son historique ?`)) return;
+    setSaving(true);
+    try {
+      await apiRequest(`/api/vehicles/${vehicleId}`, { method: "DELETE" });
+      await loadState();
+      showToast("Véhicule supprimé");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Suppression impossible");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function submitNewUser() {
+    if (saving || !newUserName.trim() || newUserPin.length < 4) return;
+    setSaving(true);
+    try {
+      await apiRequest("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newUserName, role: newUserRole, pin: newUserPin }),
+      });
+      await loadTeam();
+      setNewUserName("");
+      setNewUserPin("");
+      setNewUserRole("salarie");
+      showToast("Utilisateur créé");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Création impossible");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggleUserActive(target: TeamUser) {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await apiRequest(`/api/users/${target.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: !target.active }),
+      });
+      await loadTeam();
+      showToast(target.active ? "Compte désactivé" : "Compte réactivé");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Modification impossible");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function resetUserPin(target: TeamUser) {
+    if (saving) return;
+    const pin = window.prompt(`Nouveau code PIN pour ${target.name} (4 à 6 chiffres) :`);
+    if (!pin) return;
+    if (!/^\d{4,6}$/.test(pin)) { showToast("Code PIN invalide"); return; }
+    setSaving(true);
+    try {
+      await apiRequest(`/api/users/${target.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
+      showToast("Code PIN réinitialisé");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Modification impossible");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (!loggedIn) {
     return (
       <main className="login-page">
@@ -676,7 +788,7 @@ export default function Home() {
     ? [{ key: "home", label: "Accueil", icon: "⌂" }, { key: "vehicles", label: "Véhicules", icon: "▣" }]
     : role === "mecano"
       ? [{ key: "workshop", label: "Atelier", icon: "⌁" }, { key: "vehicles", label: "Véhicules", icon: "▣" }, { key: "maintenance", label: "Entretiens", icon: "◷" }]
-      : [{ key: "fleet", label: "Pilotage", icon: "▦" }, { key: "vehicles", label: "Parc", icon: "▣" }, { key: "workshop", label: "Atelier", icon: "⌁" }, { key: "maintenance", label: "Entretiens", icon: "◷" }];
+      : [{ key: "fleet", label: "Pilotage", icon: "▦" }, { key: "vehicles", label: "Parc", icon: "▣" }, { key: "workshop", label: "Atelier", icon: "⌁" }, { key: "maintenance", label: "Entretiens", icon: "◷" }, { key: "team", label: "Équipe", icon: "⚙" }];
 
   const titles: Record<Screen, string> = {
     home: `Bonjour ${currentUser?.name.split(" ")[0] ?? "Lucas"}`,
@@ -688,6 +800,7 @@ export default function Home() {
     workshop: "Atelier",
     maintenance: "Entretiens et alertes",
     fleet: "Vue du parc",
+    team: "Équipe et parc",
   };
 
   return (
@@ -973,6 +1086,19 @@ export default function Home() {
                     <label><span className="field-label">Catégorie *</span><select value={reportCategory} onChange={(event) => setReportCategory(event.target.value)}><option value="" disabled>Choisir dans la liste</option>{issueCategories.map((category) => <option key={category}>{category}</option>)}</select></label>
                     <label><span className="field-label">Kilométrage actuel *</span><div className="unit-input compact"><input value={reportMileage} onChange={(event) => setReportMileage(event.target.value.replace(/\D/g, ""))} inputMode="numeric" /><span>km</span></div></label>
                   </div>
+                  <fieldset>
+                    <span className="field-label">Priorité</span>
+                    <div className="urgency-picker">
+                      <label>
+                        <input type="radio" name="urgency" checked={!reportUrgent} onChange={() => setReportUrgent(false)} />
+                        <span>Normal<small>Peut attendre le prochain passage à l'atelier</small></span>
+                      </label>
+                      <label>
+                        <input type="radio" name="urgency" checked={reportUrgent} onChange={() => setReportUrgent(true)} />
+                        <span>Urgent<small>Nécessite une intervention rapide</small></span>
+                      </label>
+                    </div>
+                  </fieldset>
                   <label className="report-description"><span className="field-label">Description *</span><textarea value={reportDescription} onChange={(event) => setReportDescription(event.target.value)} placeholder="Ex. Un bruit métallique se fait entendre au freinage, surtout à faible vitesse…" rows={5} /><small>{reportDescription.trim().length ? `${reportDescription.trim().length} caractères` : "Indiquez où, quand et comment le problème se manifeste."}</small></label>
 
                   <div className="report-section-label"><span>02</span><strong>Photos</strong><small>Facultatives</small></div>
@@ -1001,14 +1127,16 @@ export default function Home() {
                         {!issue.done && <button className="outline-button" onClick={() => { const vehicle = fleetVehicles.find((item) => item.plate === issue.vehicle) ?? selectedVehicle; openWorkForm({ kind: "issue", vehicleId: vehicle.id, issueId: issue.id }, issue.title); }}>Clôturer</button>}
                       </article>
                     ))}
-                    {(issueFilter === "todo" ? periodicPending : periodicCompleted).map((operation) => { const vehicle = fleetVehicles.find((item) => item.id === operation.vehicleId) ?? selectedVehicle; return (
-                      <article className={`issue-card periodic-task ${operation.done ? "done" : ""}`} key={`periodic-${operation.id}`}>
-                        <span className="issue-indicator periodic">↻</span>
-                        <div className="issue-main"><div className="issue-meta"><button className="plate small plate-button" onClick={() => selectVehicle(vehicle)}>{vehicle.plate}</button><span className="source-label periodic">Périodique</span></div><h3>{operation.title}</h3><p>{operation.detail}</p></div>
-                        <span className={`task-state ${operation.done ? "done" : ""}`}>{operation.done ? "Fait" : "À faire"}</span>
-                        {!operation.done && <button className="outline-button" onClick={() => openWorkForm({ kind: "operation", vehicleId: vehicle.id, operationId: operation.id }, operation.title)}>Réaliser</button>}
-                      </article>
-                    ); })}
+                    {(issueFilter === "todo" ? periodicPending : periodicCompleted).map((operation) => {
+                      const vehicle = fleetVehicles.find((item) => item.id === operation.vehicleId) ?? selectedVehicle; return (
+                        <article className={`issue-card periodic-task ${operation.done ? "done" : ""}`} key={`periodic-${operation.id}`}>
+                          <span className="issue-indicator periodic">↻</span>
+                          <div className="issue-main"><div className="issue-meta"><button className="plate small plate-button" onClick={() => selectVehicle(vehicle)}>{vehicle.plate}</button><span className="source-label periodic">Périodique</span></div><h3>{operation.title}</h3><p>{operation.detail}</p></div>
+                          <span className={`task-state ${operation.done ? "done" : ""}`}>{operation.done ? "Fait" : "À faire"}</span>
+                          {!operation.done && <button className="outline-button" onClick={() => openWorkForm({ kind: "operation", vehicleId: vehicle.id, operationId: operation.id }, operation.title)}>Réaliser</button>}
+                        </article>
+                      );
+                    })}
                     {!queueHasItems && <p className="empty-state">Aucune tâche dans cette liste.</p>}
                   </div>
                 </section>
@@ -1037,8 +1165,7 @@ export default function Home() {
                 <section className="mobile-heading"><p className="eyebrow">Vue chef</p><h1>Vue du parc</h1><p>L'essentiel de la flotte en un coup d'œil.</p></section>
                 <div className="fleet-summary">
                   <div className="fleet-lead"><p className="eyebrow light-text">État du parc</p><strong>{fleetVehicles.filter((vehicle) => vehicle.status === "Disponible").length}<small>/{fleetVehicles.length}</small></strong><span>véhicules disponibles</span><div className="availability-bar"><i style={{ width: `${fleetVehicles.length ? (fleetVehicles.filter((vehicle) => vehicle.status === "Disponible").length / fleetVehicles.length) * 100 : 0}%` }} /></div></div>
-                  <div className="metric-grid chief-metrics"><Metric value={String(fleetVehicles.filter((vehicle) => vehicle.status === "HS").length)} label="Véhicules HS" tone="red" /><Metric value={String(issues.filter((issue) => !issue.done).length)} label="Problèmes à faire" tone="orange" /><Metric value={String(pendingMaintenance.length)} label="Entretiens à prévoir" tone="blue" /><Metric value="4/8" label="Contrôles hebdo faits" tone="green" /></div>
-                </div>
+                  <Metric value={`${completedWeeklyCount}/${weeklyChecks.length}`} label="Contrôles hebdo faits" tone="green" />                </div>
                 <section className="panel weekly-panel">
                   <div className="weekly-panel-head">
                     <div><p className="eyebrow">Semaine du 10 au 16 août</p><h2>Contrôles hebdomadaires</h2><p>Suivi nominatif des salariés ayant réalisé leur contrôle.</p></div>
@@ -1067,6 +1194,77 @@ export default function Home() {
                           : { tone: "green", icon: "✓" };
                     return <article key={activity.id}><span className={`activity-icon ${presentation.tone}`}>{presentation.icon}</span><div><strong>{activity.title}</strong><p>{activity.person} · {activity.plate}</p></div><time>{activity.time}</time></article>;
                   })}{recentActivity.length === 0 && <p className="empty-state">Aucune activité enregistrée.</p>}</div></section>
+                </div>
+              </div>
+            )}
+
+            {screen === "team" && role === "chef" && (
+              <div className="screen-stack">
+                <section className="mobile-heading"><p className="eyebrow">Administration</p><h1>Équipe et parc</h1><p>Gérez les véhicules et les comptes de l'équipe.</p></section>
+
+                <div className="dashboard-columns">
+                  <section className="panel">
+                    <div className="section-title"><div><p className="eyebrow">Parc</p><h2>Ajouter un véhicule</h2></div></div>
+                    <div className="form-grid" style={{ marginTop: 14 }}>
+                      <label><span className="field-label">Plaque *</span><input value={newVehiclePlate} onChange={(e) => setNewVehiclePlate(e.target.value)} placeholder="Ex. GA-218-NK" /></label>
+                      <label><span className="field-label">Modèle *</span><input value={newVehicleLabel} onChange={(e) => setNewVehicleLabel(e.target.value)} placeholder="Ex. Renault Master III L2H2" /></label>
+                      <label><span className="field-label">Kilométrage *</span><input inputMode="numeric" value={newVehicleKm} onChange={(e) => setNewVehicleKm(e.target.value.replace(/\D/g, ""))} placeholder="0" /></label>
+                    </div>
+                    <button className="primary-button" style={{ marginTop: 14 }} disabled={saving || !newVehiclePlate.trim() || !newVehicleLabel.trim() || !newVehicleKm.trim()} onClick={submitNewVehicle}>
+                      {saving ? "Ajout…" : "Ajouter le véhicule"}
+                    </button>
+
+                    <div className="section-title" style={{ marginTop: 28 }}><div><p className="eyebrow">{fleetVehicles.length} véhicules</p><h2>Parc actuel</h2></div></div>
+                    <div className="vehicle-history">
+                      {fleetVehicles.map((vehicle) => (
+                        <article className="history-entry" key={vehicle.id}>
+                          <span className="history-symbol operation">{vehicle.status === "HS" ? "!" : "✓"}</span>
+                          <div>
+                            <span className="history-type">{vehicle.plate}</span>
+                            <h3>{vehicle.label}</h3>
+                            <p>{formatKm(vehicle.km)} · {vehicle.status}</p>
+                          </div>
+                          <button className="outline-button" style={{ alignSelf: "center" }} disabled={saving} onClick={() => deleteVehicle(vehicle.id, vehicle.plate)}>Supprimer</button>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="panel">
+                    <div className="section-title"><div><p className="eyebrow">Équipe</p><h2>Créer un compte</h2></div></div>
+                    <div className="form-grid" style={{ marginTop: 14 }}>
+                      <label><span className="field-label">Nom complet *</span><input value={newUserName} onChange={(e) => setNewUserName(e.target.value)} placeholder="Ex. Julien Morel" /></label>
+                      <label><span className="field-label">Rôle *</span>
+                        <select value={newUserRole} onChange={(e) => setNewUserRole(e.target.value as Role)}>
+                          <option value="salarie">Salarié</option>
+                          <option value="mecano">Mécanicien</option>
+                          <option value="chef">Chef</option>
+                        </select>
+                      </label>
+                      <label><span className="field-label">Code PIN *</span><input inputMode="numeric" maxLength={6} value={newUserPin} onChange={(e) => setNewUserPin(e.target.value.replace(/\D/g, ""))} placeholder="••••" /></label>
+                    </div>
+                    <button className="primary-button" style={{ marginTop: 14 }} disabled={saving || !newUserName.trim() || newUserPin.length < 4} onClick={submitNewUser}>
+                      {saving ? "Création…" : "Créer le compte"}
+                    </button>
+
+                    <div className="section-title" style={{ marginTop: 28 }}><div><p className="eyebrow">{teamUsers.length} comptes</p><h2>Membres de l'équipe</h2></div></div>
+                    <div className="vehicle-history">
+                      {teamUsers.map((member) => (
+                        <article className="history-entry" key={member.id}>
+                          <span className="history-symbol check">{member.initials}</span>
+                          <div>
+                            <span className="history-type">{roleLabels[member.role]}{!member.active && " · Désactivé"}</span>
+                            <h3>{member.name}</h3>
+                          </div>
+                          <div style={{ display: "flex", gap: 8, alignSelf: "center" }}>
+                            <button className="outline-button" disabled={saving} onClick={() => resetUserPin(member)}>Réinitialiser PIN</button>
+                            <button className="outline-button" disabled={saving} onClick={() => toggleUserActive(member)}>{member.active ? "Désactiver" : "Réactiver"}</button>
+                          </div>
+                        </article>
+                      ))}
+                      {teamUsers.length === 0 && <p className="empty-state">Chargement…</p>}
+                    </div>
+                  </section>
                 </div>
               </div>
             )}

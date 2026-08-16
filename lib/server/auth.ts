@@ -72,3 +72,7 @@ export function unauthorized() {
 export function canManageWorkshop(role: AuthenticatedUser["role"]) {
   return role === "mecano" || role === "chef";
 }
+
+export function isChef(role: AuthenticatedUser["role"]) {
+  return role === "chef";
+}

@@ -1,5 +1,6 @@
 import { getD1 } from "@/db";
 import { canManageWorkshop, getAuthenticatedUser, unauthorized } from "@/lib/server/auth";
+import { computeNextOperation, formatDate, formatKm } from "@/lib/server/operations";
 
 type OperationPayload = {
   kind?: "operation" | "issue" | "new";
@@ -10,14 +11,6 @@ type OperationPayload = {
   mileage?: number;
   comment?: string;
 };
-
-function formatDate(date: Date) {
-  return new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" }).format(date);
-}
-
-function formatKm(value: number) {
-  return `${new Intl.NumberFormat("fr-FR").format(value)} km`;
-}
 
 export async function POST(request: Request) {
   try {
@@ -47,17 +40,13 @@ export async function POST(request: Request) {
       `).bind(title, detail, user.name, isoDate, mileage, payload.comment?.trim() || null, payload.operationId).run();
 
       if (source.recurrenceKm || source.recurrenceMonths) {
-        const dueKm = source.recurrenceKm ? mileage + source.recurrenceKm : null;
-        const dueDateValue = source.recurrenceMonths ? new Date(now) : null;
-        if (dueDateValue && source.recurrenceMonths) dueDateValue.setUTCMonth(dueDateValue.getUTCMonth() + source.recurrenceMonths);
-        const dueDate = dueDateValue?.toISOString().slice(0, 10) ?? null;
-        const nextDetail = dueKm
-          ? `Prévue à ${formatKm(dueKm)} · calculée depuis le kilométrage réalisé`
-          : `À réaliser avant le ${formatDate(dueDateValue!)} · calculée depuis la date réalisée`;
-        await db.prepare(`
+        const next = computeNextOperation({ mileage, now, recurrenceKm: source.recurrenceKm, recurrenceMonths: source.recurrenceMonths });
+        if (next) {
+          await db.prepare(`
           INSERT INTO operations (id, vehicle_id, title, category, detail, status, recurrence_km, recurrence_months, due_km, due_date)
           VALUES (?, ?, ?, ?, ?, 'todo', ?, ?, ?, ?)
-        `).bind(`${vehicleId}-${crypto.randomUUID()}-next`, vehicleId, title, source.category, nextDetail, source.recurrenceKm, source.recurrenceMonths, dueKm, dueDate).run();
+          `).bind(`${vehicleId}-${crypto.randomUUID()}-next`, vehicleId, title, source.category, next.nextDetail, source.recurrenceKm, source.recurrenceMonths, next.dueKm, next.dueDate).run();
+        }
       }
     } else {
       await db.prepare(`
