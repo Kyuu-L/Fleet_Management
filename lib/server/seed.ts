@@ -1,6 +1,6 @@
 import { getD1 } from "@/db";
 import { ensureSchema } from "./schema-sql";
-
+import { inferVehicleModelId } from "@/lib/vehicle-models";
 
 const demoUsers = [
   [1, "Lucas Martin", "LM", "salarie", "0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c", 1],
@@ -87,8 +87,12 @@ export async function ensureDemoData() {
 
   const statements = [
     ...demoUsers.map((row) => db.prepare("INSERT INTO users (id, name, initials, role, pin_hash, login_enabled, active) VALUES (?, ?, ?, ?, ?, ?, 1)").bind(...row)),
-    ...demoVehicles.map((row) => db.prepare("INSERT INTO vehicles (id, plate, label, km, status, maintenance, image) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(...row)),
-    ...demoIssues.map((row) => db.prepare("INSERT INTO issues (id, vehicle_id, created_by, category, title, description, mileage, urgent, status, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(...row)),
+    ...demoVehicles.map((row) => {
+      const [id, plate, label, km, status, maintenance, image] = row;
+      const modelId = inferVehicleModelId(label, image);
+      return db.prepare("INSERT INTO vehicles (id, plate, label, model_id, km, status, maintenance, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+        .bind(id, plate, label, modelId, km, status, maintenance, image);
+    }), ...demoIssues.map((row) => db.prepare("INSERT INTO issues (id, vehicle_id, created_by, category, title, description, mileage, urgent, status, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(...row)),
     ...demoOperations.map((row) => db.prepare("INSERT INTO operations (id, vehicle_id, title, category, detail, status, completed_by, completed_date, completed_km, comment, recurrence_km, recurrence_months, due_km, due_date, source_issue_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(...row)),
   ];
 

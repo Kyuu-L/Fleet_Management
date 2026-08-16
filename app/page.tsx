@@ -3,6 +3,7 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { preparePhotoFile } from "@/lib/client/photos";
 import { isMaintenanceActionable } from "@/lib/maintenance";
+import { vehicleModels, getVehicleModel } from "@/lib/vehicle-models";
 
 type Role = "salarie" | "mecano" | "chef";
 type VehicleFilter = "all" | "available" | "hs";
@@ -109,6 +110,17 @@ type CheckItem = {
   title: string;
   hint: string;
   choices: CheckChoice[];
+};
+
+type MaintenancePlanView = {
+  id: string;
+  scope: "model" | "vehicle";
+  modelId: string | null;
+  vehicleId: number | null;
+  title: string;
+  category: string;
+  recurrenceKm: number | null;
+  recurrenceMonths: number | null;
 };
 
 const operationCategories = [
@@ -238,9 +250,17 @@ export default function Home() {
   const [todayLabel, setTodayLabel] = useState("");
   const [weekLabel, setWeekLabel] = useState("");
   const [teamUsers, setTeamUsers] = useState<TeamUser[]>([]);
+  const [maintenancePlans, setMaintenancePlans] = useState<MaintenancePlanView[]>([]);
+  const [planScope, setPlanScope] = useState<"model" | "vehicle">("vehicle");
+  const [planModelId, setPlanModelId] = useState(vehicleModels[0]?.id ?? "");
+  const [planVehicleId, setPlanVehicleId] = useState<number | "">("");
+  const [planTitle, setPlanTitle] = useState("");
+  const [planCategory, setPlanCategory] = useState(operationCategories[0]);
+  const [planRecurrenceKm, setPlanRecurrenceKm] = useState("");
+  const [planRecurrenceMonths, setPlanRecurrenceMonths] = useState("");
   const [teamLoading, setTeamLoading] = useState(false);
   const [newVehiclePlate, setNewVehiclePlate] = useState("");
-  const [newVehicleLabel, setNewVehicleLabel] = useState("");
+  const [newVehicleModelId, setNewVehicleModelId] = useState(vehicleModels[0]?.id ?? "");
   const [newVehicleKm, setNewVehicleKm] = useState("");
   const [newUserName, setNewUserName] = useState("");
   const [newUserRole, setNewUserRole] = useState<Role>("salarie");
@@ -399,6 +419,13 @@ export default function Home() {
     // Team data is loaded when the chef opens the administration screen.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loggedIn, screen, role]);
+
+  useEffect(() => {
+    if (screen === "maintenance" && (role === "mecano" || role === "chef")) {
+      void reloadMaintenancePlans().catch((error) => showToast(error instanceof Error ? error.message : "Chargement impossible"));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, role]);
 
   function showToast(message: string) {
     setToast(message);
@@ -596,6 +623,57 @@ export default function Home() {
     setScheduleOpen(true);
   }
 
+  async function reloadMaintenancePlans() {
+    const data = await apiRequest<{ plans: MaintenancePlanView[] }>("/api/maintenance-plans");
+    setMaintenancePlans(data.plans);
+  }
+
+  async function submitMaintenancePlan() {
+    if (saving || !planTitle.trim() || !planCategory) return;
+    if (!planRecurrenceKm.trim() && !planRecurrenceMonths.trim()) return;
+    if (planScope === "vehicle" && planVehicleId === "") return;
+    setSaving(true);
+    try {
+      await apiRequest("/api/maintenance-plans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scope: planScope,
+          modelId: planScope === "model" ? planModelId : undefined,
+          vehicleId: planScope === "vehicle" ? Number(planVehicleId) : undefined,
+          title: planTitle.trim(),
+          category: planCategory,
+          recurrenceKm: planRecurrenceKm.trim() ? Number(planRecurrenceKm) : undefined,
+          recurrenceMonths: planRecurrenceMonths.trim() ? Number(planRecurrenceMonths) : undefined,
+        }),
+      });
+      await Promise.all([loadState(), reloadMaintenancePlans()]);
+      setPlanTitle("");
+      setPlanRecurrenceKm("");
+      setPlanRecurrenceMonths("");
+      showToast("Entretien périodique programmé");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Création impossible");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteMaintenancePlan(planId: string) {
+    if (saving) return;
+    if (!window.confirm("Supprimer ce plan d'entretien périodique ?")) return;
+    setSaving(true);
+    try {
+      await apiRequest(`/api/maintenance-plans/${planId}`, { method: "DELETE" });
+      await reloadMaintenancePlans();
+      showToast("Plan supprimé");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Suppression impossible");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function closeScheduleForm() {
     setScheduleOpen(false);
   }
@@ -687,17 +765,17 @@ export default function Home() {
   }
 
   async function submitNewVehicle() {
-    if (saving || !newVehiclePlate.trim() || !newVehicleLabel.trim() || !newVehicleKm.trim()) return;
+    if (saving || !newVehiclePlate.trim() || !newVehicleModelId || !newVehicleKm.trim()) return;
     setSaving(true);
     try {
       await apiRequest("/api/vehicles", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plate: newVehiclePlate, label: newVehicleLabel, km: Number(newVehicleKm) }),
+        body: JSON.stringify({ plate: newVehiclePlate, modelId: newVehicleModelId, km: Number(newVehicleKm) }),
       });
       await loadState();
       setNewVehiclePlate("");
-      setNewVehicleLabel("");
+      setNewVehicleModelId(vehicleModels[0]?.id ?? "");
       setNewVehicleKm("");
       showToast("Véhicule ajouté au parc");
     } catch (error) {
@@ -878,9 +956,11 @@ export default function Home() {
 
           <div className="mobile-topbar">
             <div className="brand-lockup"><span className="brand-sign">F</span><span>Flotte</span></div>
-            <button className="role-chip" disabled={allowedRoles.length === 1} onClick={() => switchRole(allowedRoles[(allowedRoles.indexOf(role) + 1) % allowedRoles.length])}>{roleLabels[role]} · En ligne</button>
+            <div className="mobile-topbar-actions">
+              <button className="role-chip" disabled={allowedRoles.length === 1} onClick={() => switchRole(allowedRoles[(allowedRoles.indexOf(role) + 1) % allowedRoles.length])}>{roleLabels[role]} · En ligne</button>
+              <button className="mobile-logout" aria-label="Se déconnecter" onClick={logout}>↗</button>
+            </div>
           </div>
-
           <div className="screen-area">
             {screen === "home" && (
               <div className="screen-stack">
@@ -888,29 +968,29 @@ export default function Home() {
                   <section className="panel"><p className="empty-state">Aucun véhicule disponible pour le moment.</p></section>
                 ) : (
                   <>
-                <section className="mobile-heading"><p className="eyebrow">{todayLabel || "Aujourd'hui"}</p><h1>Bonjour {currentUser?.name.split(" ")[0] ?? "Lucas"}</h1><p>Quel véhicule utilisez-vous aujourd'hui ?</p></section>
+                    <section className="mobile-heading"><p className="eyebrow">{todayLabel || "Aujourd'hui"}</p><h1>Bonjour {currentUser?.name.split(" ")[0] ?? "Lucas"}</h1><p>Quel véhicule utilisez-vous aujourd'hui ?</p></section>
 
-                <section className="current-vehicle-card">
-                  <div className="vehicle-card-copy">
-                    <div className="card-overline"><span>Véhicule affiché</span><StatusPill status={selectedVehicle.status} /></div>
-                    <h2>{selectedVehicle.label}</h2>
-                    <div className="plate">{selectedVehicle.plate}</div>
-                    <div className="vehicle-facts"><span><small>Kilométrage</small><strong>{formatKm(selectedVehicle.km)}</strong></span><span><small>Prochain entretien</small><strong>{selectedVehicle.maintenance}</strong></span></div>
-                  </div>
-                  <VehicleMark vehicle={selectedVehicle} />
-                  <button type="button" className="change-vehicle" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setScreen("vehicles"); }}>Changer de véhicule <span>→</span></button>
-                </section>
+                    <section className="current-vehicle-card">
+                      <div className="vehicle-card-copy">
+                        <div className="card-overline"><span>Véhicule affiché</span><StatusPill status={selectedVehicle.status} /></div>
+                        <h2>{selectedVehicle.label}</h2>
+                        <div className="plate">{selectedVehicle.plate}</div>
+                        <div className="vehicle-facts"><span><small>Kilométrage</small><strong>{formatKm(selectedVehicle.km)}</strong></span><span><small>Prochain entretien</small><strong>{selectedVehicle.maintenance}</strong></span></div>
+                      </div>
+                      <VehicleMark vehicle={selectedVehicle} />
+                      <button type="button" className="change-vehicle" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setScreen("vehicles"); }}>Changer de véhicule <span>→</span></button>
+                    </section>
 
-                <section>
-                  <div className="section-title"><div><p className="eyebrow">Actions rapides</p><h2>Que voulez-vous faire ?</h2></div></div>
-                  <div className="quick-actions">
-                    <button className="quick-card blue" onClick={() => setScreen("mileage")}><span className="action-icon">123</span><strong>Saisir le kilométrage</strong><small>Dernier relevé : aujourd'hui</small><i>→</i></button>
-                    <button className="quick-card green" onClick={() => setScreen("check")}><span className="action-icon">✓</span><strong>Contrôle hebdomadaire</strong><small>17 points à vérifier</small><i>→</i></button>
-                    <button className="quick-card orange" onClick={() => setScreen("report")}><span className="action-icon">!</span><strong>Signaler un problème</strong><small>Photo facultative</small><i>→</i></button>
-                  </div>
-                </section>
+                    <section>
+                      <div className="section-title"><div><p className="eyebrow">Actions rapides</p><h2>Que voulez-vous faire ?</h2></div></div>
+                      <div className="quick-actions">
+                        <button className="quick-card blue" onClick={() => setScreen("mileage")}><span className="action-icon">123</span><strong>Saisir le kilométrage</strong><small>Dernier relevé : aujourd'hui</small><i>→</i></button>
+                        <button className="quick-card green" onClick={() => setScreen("check")}><span className="action-icon">✓</span><strong>Contrôle hebdomadaire</strong><small>17 points à vérifier</small><i>→</i></button>
+                        <button className="quick-card orange" onClick={() => setScreen("report")}><span className="action-icon">!</span><strong>Signaler un problème</strong><small>Photo facultative</small><i>→</i></button>
+                      </div>
+                    </section>
 
-                <section className="info-strip"><span className="info-icon">i</span><div><strong>Pas d'affectation dans l'application</strong><p>Vous pouvez changer librement de véhicule. Cette sélection sert uniquement à afficher sa fiche.</p></div></section>
+                    <section className="info-strip"><span className="info-icon">i</span><div><strong>Pas d'affectation dans l'application</strong><p>Vous pouvez changer librement de véhicule. Cette sélection sert uniquement à afficher sa fiche.</p></div></section>
                   </>
                 )}
               </div>
@@ -1196,6 +1276,66 @@ export default function Home() {
                 <section className="mobile-heading"><p className="eyebrow">Prévention</p><h1>Entretiens et alertes</h1><p>Échéances calculées par date ou kilométrage.</p></section>
                 <div className="metric-grid three"><Metric value={String(actionableMaintenance.length)} label="Opérations à faire" tone="orange" /><Metric value={String(pendingMaintenance.filter((operation) => operation.recurrenceKm || operation.recurrenceMonths).length)} label="Échéances planifiées" tone="blue" /><Metric value={String(fleetVehicles.filter((vehicle) => vehicle.status === "Disponible").length)} label="Véhicules disponibles" tone="green" /></div>
                 <section className="panel timeline-panel">
+                  {(role === "mecano" || role === "chef") && (
+                    <section className="panel">
+                      <div className="section-title"><div><p className="eyebrow">Prévention</p><h2>Entretiens périodiques</h2></div></div>
+                      <p className="muted" style={{ marginTop: 6 }}>Programmez une récurrence par kilométrage et/ou par mois, pour un véhicule précis ou pour tout un modèle.</p>
+
+                      <div className="form-grid" style={{ marginTop: 14 }}>
+                        <label><span className="field-label">Portée *</span>
+                          <select value={planScope} onChange={(e) => setPlanScope(e.target.value as "model" | "vehicle")}>
+                            <option value="vehicle">Un seul véhicule</option>
+                            <option value="model">Tous les véhicules d'un modèle</option>
+                          </select>
+                        </label>
+                        {planScope === "vehicle" ? (
+                          <label><span className="field-label">Véhicule *</span>
+                            <select value={planVehicleId} onChange={(e) => setPlanVehicleId(e.target.value ? Number(e.target.value) : "")}>
+                              <option value="" disabled>Choisir un véhicule</option>
+                              {fleetVehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.plate} · {vehicle.label}</option>)}
+                            </select>
+                          </label>
+                        ) : (
+                          <label><span className="field-label">Modèle *</span>
+                            <select value={planModelId} onChange={(e) => setPlanModelId(e.target.value)}>
+                              {vehicleModels.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}
+                            </select>
+                          </label>
+                        )}
+                      </div>
+                      <div className="form-grid">
+                        <label><span className="field-label">Titre *</span><input value={planTitle} onChange={(e) => setPlanTitle(e.target.value)} placeholder="Ex. Vidange moteur" /></label>
+                        <label><span className="field-label">Catégorie *</span>
+                          <select value={planCategory} onChange={(e) => setPlanCategory(e.target.value)}>
+                            {operationCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+                          </select>
+                        </label>
+                      </div>
+                      <div className="form-grid">
+                        <label><span className="field-label">Récurrence km</span><div className="unit-input"><input inputMode="numeric" value={planRecurrenceKm} onChange={(e) => setPlanRecurrenceKm(e.target.value.replace(/\D/g, ""))} placeholder="Ex. 20000" /><span>km</span></div></label>
+                        <label><span className="field-label">Récurrence mois</span><input inputMode="numeric" value={planRecurrenceMonths} onChange={(e) => setPlanRecurrenceMonths(e.target.value.replace(/\D/g, ""))} placeholder="Ex. 24" /></label>
+                      </div>
+                      <button className="primary-button" style={{ marginTop: 4 }} disabled={saving || !planTitle.trim() || (!planRecurrenceKm.trim() && !planRecurrenceMonths.trim()) || (planScope === "vehicle" && planVehicleId === "")} onClick={submitMaintenancePlan}>
+                        {saving ? "Programmation…" : "Programmer l'entretien"}
+                      </button>
+
+                      <div className="section-title" style={{ marginTop: 24 }}><div><p className="eyebrow">{maintenancePlans.length} plans actifs</p><h2>Plans en cours</h2></div></div>
+                      <div className="vehicle-history">
+                        {maintenancePlans.map((plan) => (
+                          <article className="history-entry" key={plan.id}>
+                            <span className="history-symbol operation">↻</span>
+                            <div>
+                              <span className="history-type">{plan.scope === "model" ? (getVehicleModel(plan.modelId)?.label ?? "Modèle") : (fleetVehicles.find((v) => v.id === plan.vehicleId)?.plate ?? "Véhicule")}</span>
+                              <h3>{plan.title}</h3>
+                              <p>{plan.category}{plan.recurrenceKm ? ` · tous les ${new Intl.NumberFormat("fr-FR").format(plan.recurrenceKm)} km` : ""}{plan.recurrenceMonths ? ` · tous les ${plan.recurrenceMonths} mois` : ""}</p>
+                            </div>
+                            <button className="outline-button" style={{ alignSelf: "center" }} disabled={saving} onClick={() => deleteMaintenancePlan(plan.id)}>Supprimer</button>
+                          </article>
+                        ))}
+                        {maintenancePlans.length === 0 && <p className="empty-state">Aucun plan d'entretien programmé.</p>}
+                      </div>
+                    </section>
+                  )}
                   <div className="section-title"><div><p className="eyebrow">À surveiller</p><h2>Prochaines échéances</h2></div><small className="automatic-label">↻ Renouvellement automatique</small></div>
                   <div className="timeline">
                     {pendingMaintenance.slice(0, 8).map((operation) => { const vehicle = fleetVehicles.find((item) => item.id === operation.vehicleId)!; const remainingKm = operation.dueKm ? operation.dueKm - vehicle.km : undefined; return <article key={operation.id}><span className={`timeline-dot ${operation.category === "Urgent" ? "red" : operation.recurrenceKm || operation.recurrenceMonths ? "blue" : "orange"}`} /><div><button className="plate small plate-button" onClick={() => selectVehicle(vehicle)}>{vehicle.plate}</button><h3>{operation.title}</h3><p>{operation.detail}</p></div><span className={operation.category === "Urgent" ? "late-chip" : "soon-chip"}>{remainingKm !== undefined ? `${new Intl.NumberFormat("fr-FR").format(remainingKm)} km` : operation.recurrenceMonths ? `${operation.recurrenceMonths} mois` : "À prévoir"}</span></article>; })}
@@ -1251,10 +1391,20 @@ export default function Home() {
                     <div className="section-title"><div><p className="eyebrow">Parc</p><h2>Ajouter un véhicule</h2></div></div>
                     <div className="form-grid" style={{ marginTop: 14 }}>
                       <label><span className="field-label">Plaque *</span><input value={newVehiclePlate} onChange={(e) => setNewVehiclePlate(e.target.value)} placeholder="Ex. GA-218-NK" /></label>
-                      <label><span className="field-label">Modèle *</span><input value={newVehicleLabel} onChange={(e) => setNewVehicleLabel(e.target.value)} placeholder="Ex. Renault Master III L2H2" /></label>
+                      <label><span className="field-label">Modèle *</span>
+                        <select value={newVehicleModelId} onChange={(e) => setNewVehicleModelId(e.target.value)}>
+                          {vehicleModels.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}
+                        </select>
+                      </label>
+                      {getVehicleModel(newVehicleModelId) && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <img src={getVehicleModel(newVehicleModelId)!.image} alt="" style={{ width: 64, height: 44, objectFit: "contain" }} />
+                          <span className="muted" style={{ fontSize: 11 }}>Aperçu du modèle sélectionné</span>
+                        </div>
+                      )}
                       <label><span className="field-label">Kilométrage *</span><input inputMode="numeric" value={newVehicleKm} onChange={(e) => setNewVehicleKm(e.target.value.replace(/\D/g, ""))} placeholder="0" /></label>
                     </div>
-                    <button className="primary-button" style={{ marginTop: 14 }} disabled={saving || !newVehiclePlate.trim() || !newVehicleLabel.trim() || !newVehicleKm.trim()} onClick={submitNewVehicle}>
+                    <button className="primary-button" style={{ marginTop: 14 }} disabled={saving || !newVehiclePlate.trim() || !newVehicleModelId.trim() || !newVehicleKm.trim()} onClick={submitNewVehicle}>
                       {saving ? "Ajout…" : "Ajouter le véhicule"}
                     </button>
 
@@ -1316,8 +1466,7 @@ export default function Home() {
           </div>
 
           <nav className="bottom-nav" aria-label="Navigation mobile">
-            {navigation.slice(0, 4).map((item) => (
-              <button key={item.key} className={screen === item.key ? "active" : ""} onClick={() => setScreen(item.key as Screen)}><span aria-hidden="true">{item.icon}</span>{item.label}</button>
+            {navigation.map((item) => (<button key={item.key} className={screen === item.key ? "active" : ""} onClick={() => setScreen(item.key as Screen)}><span aria-hidden="true">{item.icon}</span>{item.label}</button>
             ))}
           </nav>
         </section>

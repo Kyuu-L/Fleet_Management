@@ -16,24 +16,24 @@ const localBindingConfig = {
   compatibility_flags: ["nodejs_compat"],
   d1_databases: d1
     ? [
-        {
-          binding: d1,
-          database_name: "site-creator-d1",
-          database_id: SITE_CREATOR_PLACEHOLDER_DATABASE_ID,
-        },
-      ]
+      {
+        binding: d1,
+        database_name: "site-creator-d1",
+        database_id: SITE_CREATOR_PLACEHOLDER_DATABASE_ID,
+      },
+    ]
     : [],
   r2_buckets: r2
     ? [
-        {
-          binding: r2,
-          bucket_name: "site-creator-r2",
-        },
-      ]
+      {
+        binding: r2,
+        bucket_name: "site-creator-r2",
+      },
+    ]
     : [],
 };
 
-export default defineConfig(async () => {
+export default defineConfig(async ({ command }) => {
   // Keep Wrangler and Miniflare state project-local. These are non-secret tool
   // settings; application environment belongs in ignored `.env*` files.
   process.env.WRANGLER_WRITE_LOGS ??= "false";
@@ -42,6 +42,11 @@ export default defineConfig(async () => {
 
   // Wrangler snapshots its log path while the Cloudflare plugin is imported.
   const { cloudflare } = await import("@cloudflare/vite-plugin");
+
+  // Only simulate bindings locally: at build/deploy time, the real
+  // wrangler.jsonc (with the actual D1/R2 IDs) must be the single source of
+  // truth, otherwise Wrangler sees two competing bindings with the same name.
+  const isDev = command === "serve";
 
   return {
     server: isCodexSeatbeltSandbox
@@ -52,7 +57,7 @@ export default defineConfig(async () => {
       sites(),
       cloudflare({
         viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
-        config: localBindingConfig,
+        ...(isDev ? { config: localBindingConfig } : {}),
       }),
     ],
   };
