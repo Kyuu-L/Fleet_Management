@@ -1198,6 +1198,91 @@ textarea:focus {
   margin-top: 13px;
 }
 
+.accordion-section {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: white;
+  overflow: hidden;
+}
+
+.accordion-section+.accordion-section {
+  margin-top: 12px;
+}
+
+.accordion-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 16px 18px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-weight: 750;
+  font-size: 13px;
+  color: var(--ink);
+  text-align: left;
+}
+
+.accordion-summary>span:first-child {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.accordion-summary small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.accordion-summary-chevron {
+  color: var(--muted);
+  font-size: 11px;
+  transition: transform .18s ease;
+  flex: 0 0 auto;
+}
+
+.accordion-section.open .accordion-summary-chevron {
+  transform: rotate(90deg);
+}
+
+.accordion-body {
+  display: none;
+  padding: 0 18px 18px;
+  border-top: 1px solid var(--line);
+}
+
+.accordion-section.open .accordion-body {
+  display: block;
+}
+
+.accordion-body>.form-grid:first-child,
+.accordion-body>.vehicle-history:first-child {
+  margin-top: 16px;
+}
+
+.accordion-columns {
+  display: grid;
+  gap: 12px;
+}
+
+@media (min-width: 901px) {
+  .accordion-summary {
+    cursor: default;
+    pointer-events: none;
+  }
+
+  .accordion-summary-chevron {
+    display: none;
+  }
+
+  .accordion-body {
+    display: block !important;
+  }
+}
+
 .history-entry {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -3615,5 +3700,21 @@ textarea:focus {
     scroll-behavior: auto !important;
     transition: none !important;
     animation: none !important;
+  }
+}
+
+@media (min-width: 901px) {
+  .accordion-section summary {
+    cursor: default;
+    pointer-events: none;
+  }
+
+  .accordion-section .accordion-summary-chevron {
+    display: none;
+  }
+
+  .accordion-body {
+    display: block !important;
+    content-visibility: visible !important;
   }
 }

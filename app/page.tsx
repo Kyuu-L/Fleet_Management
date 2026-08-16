@@ -215,6 +215,19 @@ function Metric({ value, label, tone = "ink" }: { value: string; label: string; 
   return <div className={`metric ${tone}`}><strong>{value}</strong><span>{label}</span></div>;
 }
 
+function AccordionSection({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={`accordion-section ${open ? "open" : ""}`}>
+      <button type="button" className="accordion-summary" onClick={() => setOpen(!open)}>
+        <span>{title}{subtitle && <small>{subtitle}</small>}</span>
+        <span className="accordion-summary-chevron">▸</span>
+      </button>
+      <div className="accordion-body">{children}</div>
+    </div>
+  );
+}
+
 export default function Home() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
@@ -1387,79 +1400,83 @@ export default function Home() {
                 <section className="mobile-heading"><p className="eyebrow">Administration</p><h1>Équipe et parc</h1><p>Gérez les véhicules et les comptes de l'équipe.</p></section>
 
                 <div className="dashboard-columns">
-                  <section className="panel">
-                    <div className="section-title"><div><p className="eyebrow">Parc</p><h2>Ajouter un véhicule</h2></div></div>
-                    <div className="form-grid" style={{ marginTop: 14 }}>
-                      <label><span className="field-label">Plaque *</span><input value={newVehiclePlate} onChange={(e) => setNewVehiclePlate(e.target.value)} placeholder="Ex. GA-218-NK" /></label>
-                      <label><span className="field-label">Modèle *</span>
-                        <select value={newVehicleModelId} onChange={(e) => setNewVehicleModelId(e.target.value)}>
-                          {vehicleModels.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}
-                        </select>
-                      </label>
-                      {getVehicleModel(newVehicleModelId) && (
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <img src={getVehicleModel(newVehicleModelId)!.image} alt="" style={{ width: 64, height: 44, objectFit: "contain" }} />
-                          <span className="muted" style={{ fontSize: 11 }}>Aperçu du modèle sélectionné</span>
-                        </div>
-                      )}
-                      <label><span className="field-label">Kilométrage *</span><input inputMode="numeric" value={newVehicleKm} onChange={(e) => setNewVehicleKm(e.target.value.replace(/\D/g, ""))} placeholder="0" /></label>
-                    </div>
-                    <button className="primary-button" style={{ marginTop: 14 }} disabled={saving || !newVehiclePlate.trim() || !newVehicleModelId.trim() || !newVehicleKm.trim()} onClick={submitNewVehicle}>
-                      {saving ? "Ajout…" : "Ajouter le véhicule"}
-                    </button>
-
-                    <div className="section-title" style={{ marginTop: 28 }}><div><p className="eyebrow">{fleetVehicles.length} véhicules</p><h2>Parc actuel</h2></div></div>
-                    <div className="vehicle-history">
-                      {fleetVehicles.map((vehicle) => (
-                        <article className="history-entry" key={vehicle.id}>
-                          <span className="history-symbol operation">{vehicle.status === "HS" ? "!" : "✓"}</span>
-                          <div>
-                            <span className="history-type">{vehicle.plate}</span>
-                            <h3>{vehicle.label}</h3>
-                            <p>{formatKm(vehicle.km)} · {vehicle.status}</p>
+                  <div className="accordion-columns">
+                    <AccordionSection title="Ajouter un véhicule">
+                      <div className="form-grid" style={{ marginTop: 16 }}>
+                        <label><span className="field-label">Plaque *</span><input value={newVehiclePlate} onChange={(e) => setNewVehiclePlate(e.target.value)} placeholder="Ex. GA-218-NK" /></label>
+                        <label><span className="field-label">Modèle *</span>
+                          <select value={newVehicleModelId} onChange={(e) => setNewVehicleModelId(e.target.value)}>
+                            {vehicleModels.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}
+                          </select>
+                        </label>
+                        {getVehicleModel(newVehicleModelId) && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <img src={getVehicleModel(newVehicleModelId)!.image} alt="" style={{ width: 64, height: 44, objectFit: "contain" }} />
+                            <span className="muted" style={{ fontSize: 11 }}>Aperçu du modèle sélectionné</span>
                           </div>
-                          <button className="outline-button" style={{ alignSelf: "center" }} disabled={saving} onClick={() => deleteVehicle(vehicle.id, vehicle.plate)}>Supprimer</button>
-                        </article>
-                      ))}
-                    </div>
-                  </section>
+                        )}
+                        <label><span className="field-label">Kilométrage *</span><input inputMode="numeric" value={newVehicleKm} onChange={(e) => setNewVehicleKm(e.target.value.replace(/\D/g, ""))} placeholder="0" /></label>
+                      </div>
+                      <button className="primary-button" style={{ marginTop: 14 }} disabled={saving || !newVehiclePlate.trim() || !newVehicleModelId || !newVehicleKm.trim()} onClick={submitNewVehicle}>
+                        {saving ? "Ajout…" : "Ajouter le véhicule"}
+                      </button>
+                    </AccordionSection>
 
-                  <section className="panel">
-                    <div className="section-title"><div><p className="eyebrow">Équipe</p><h2>Créer un compte</h2></div></div>
-                    <div className="form-grid" style={{ marginTop: 14 }}>
-                      <label><span className="field-label">Nom complet *</span><input value={newUserName} onChange={(e) => setNewUserName(e.target.value)} placeholder="Ex. Julien Morel" /></label>
-                      <label><span className="field-label">Rôle *</span>
-                        <select value={newUserRole} onChange={(e) => setNewUserRole(e.target.value as Role)}>
-                          <option value="salarie">Salarié</option>
-                          <option value="mecano">Mécanicien</option>
-                          <option value="chef">Chef</option>
-                        </select>
-                      </label>
-                      <label><span className="field-label">Code PIN *</span><input inputMode="numeric" maxLength={6} value={newUserPin} onChange={(e) => setNewUserPin(e.target.value.replace(/\D/g, ""))} placeholder="••••" /></label>
-                    </div>
-                    <button className="primary-button" style={{ marginTop: 14 }} disabled={saving || !newUserName.trim() || newUserPin.length < 4} onClick={submitNewUser}>
-                      {saving ? "Création…" : "Créer le compte"}
-                    </button>
+                    <AccordionSection title="Parc actuel" subtitle={`${fleetVehicles.length} véhicules`}>
+                      <div className="vehicle-history">
+                        {fleetVehicles.map((vehicle) => (
+                          <article className="history-entry" key={vehicle.id}>
+                            <span className="history-symbol operation">{vehicle.status === "HS" ? "!" : "✓"}</span>
+                            <div>
+                              <span className="history-type">{vehicle.plate}</span>
+                              <h3>{vehicle.label}</h3>
+                              <p>{formatKm(vehicle.km)} · {vehicle.status}</p>
+                            </div>
+                            <button className="outline-button" style={{ alignSelf: "center" }} disabled={saving} onClick={() => deleteVehicle(vehicle.id, vehicle.plate)}>Supprimer</button>
+                          </article>
+                        ))}
+                        {fleetVehicles.length === 0 && <p className="empty-state">Aucun véhicule dans le parc.</p>}
+                      </div>
+                    </AccordionSection>
+                  </div>
 
-                    <div className="section-title" style={{ marginTop: 28 }}><div><p className="eyebrow">{teamUsers.length} comptes</p><h2>Membres de l'équipe</h2></div></div>
-                    <div className="vehicle-history">
-                      {teamUsers.map((member) => (
-                        <article className="history-entry" key={member.id}>
-                          <span className="history-symbol check">{member.initials}</span>
-                          <div>
-                            <span className="history-type">{roleLabels[member.role]}{!Boolean(member.active) && " · Désactivé"}</span>
-                            <h3>{member.name}</h3>
-                          </div>
-                          <div style={{ display: "flex", gap: 8, alignSelf: "center" }}>
-                            <button className="outline-button" disabled={saving} onClick={() => resetUserPin(member)}>Réinitialiser PIN</button>
-                            <button className="outline-button" disabled={saving} onClick={() => toggleUserActive(member)}>{Boolean(member.active) ? "Désactiver" : "Réactiver"}</button>
-                          </div>
-                        </article>
-                      ))}
-                      {teamLoading && teamUsers.length === 0 && <p className="empty-state">Chargement…</p>}
-                      {!teamLoading && teamUsers.length === 0 && <p className="empty-state">Aucun compte trouvé.</p>}
-                    </div>
-                  </section>
+                  <div className="accordion-columns">
+                    <AccordionSection title="Créer un compte">
+                      <div className="form-grid" style={{ marginTop: 16 }}>
+                        <label><span className="field-label">Nom complet *</span><input value={newUserName} onChange={(e) => setNewUserName(e.target.value)} placeholder="Ex. Julien Morel" /></label>
+                        <label><span className="field-label">Rôle *</span>
+                          <select value={newUserRole} onChange={(e) => setNewUserRole(e.target.value as Role)}>
+                            <option value="salarie">Salarié</option>
+                            <option value="mecano">Mécanicien</option>
+                            <option value="chef">Chef</option>
+                          </select>
+                        </label>
+                        <label><span className="field-label">Code PIN *</span><input inputMode="numeric" maxLength={6} value={newUserPin} onChange={(e) => setNewUserPin(e.target.value.replace(/\D/g, ""))} placeholder="••••" /></label>
+                      </div>
+                      <button className="primary-button" style={{ marginTop: 14 }} disabled={saving || !newUserName.trim() || newUserPin.length < 4} onClick={submitNewUser}>
+                        {saving ? "Création…" : "Créer le compte"}
+                      </button>
+                    </AccordionSection>
+
+                    <AccordionSection title="Membres de l'équipe" subtitle={`${teamUsers.length} comptes`}>
+                      <div className="vehicle-history">
+                        {teamUsers.map((member) => (
+                          <article className="history-entry" key={member.id}>
+                            <span className="history-symbol check">{member.initials}</span>
+                            <div>
+                              <span className="history-type">{roleLabels[member.role]}{!member.active && " · Désactivé"}</span>
+                              <h3>{member.name}</h3>
+                            </div>
+                            <div style={{ display: "flex", gap: 8, alignSelf: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                              <button className="outline-button" disabled={saving} onClick={() => resetUserPin(member)}>Réinitialiser PIN</button>
+                              <button className="outline-button" disabled={saving} onClick={() => toggleUserActive(member)}>{member.active ? "Désactiver" : "Réactiver"}</button>
+                            </div>
+                          </article>
+                        ))}
+                        {teamUsers.length === 0 && <p className="empty-state">Chargement…</p>}
+                      </div>
+                    </AccordionSection>
+                  </div>
                 </div>
               </div>
             )}
