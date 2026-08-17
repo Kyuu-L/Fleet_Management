@@ -32,19 +32,21 @@ test("declares durable database and photo storage", async () => {
 
 test("keeps all write workflows connected to server routes", async () => {
   const page = await readFile(new URL("app/page.tsx", root), "utf8");
-  for (const endpoint of ["/api/login", "/api/state", "/api/mileage", "/api/issues", "/api/weekly-controls", "/api/operations/complete", "/api/vehicles/status", "/api/vehicles", "/api/users", "/api/maintenance-plans"]) {
+  for (const endpoint of ["/api/login", "/api/state", "/api/mileage", "/api/issues", "/api/weekly-controls", "/api/operations/complete", "/api/vehicles/status", "/api/vehicles", "/api/users", "/api/maintenance-plans", "/api/vehicles/bulk-import", "/api/vehicles/reset-demo"]) {
     assert.match(page, new RegExp(endpoint.replaceAll("/", "\\/")));
   }
 });
 
 test("restricts fleet and team administration to the chef role", async () => {
-  const [vehiclesRoute, vehicleIdRoute, usersRoute, userIdRoute] = await Promise.all([
+  const [vehiclesRoute, vehicleIdRoute, usersRoute, userIdRoute, bulkImportRoute, resetDemoRoute] = await Promise.all([
     readFile(new URL("app/api/vehicles/route.ts", root), "utf8"),
     readFile(new URL("app/api/vehicles/[id]/route.ts", root), "utf8"),
     readFile(new URL("app/api/users/route.ts", root), "utf8"),
     readFile(new URL("app/api/users/[id]/route.ts", root), "utf8"),
+    readFile(new URL("app/api/vehicles/bulk-import/route.ts", root), "utf8"),
+    readFile(new URL("app/api/vehicles/reset-demo/route.ts", root), "utf8"),
   ]);
-  for (const source of [vehiclesRoute, vehicleIdRoute, usersRoute, userIdRoute]) {
+  for (const source of [vehiclesRoute, vehicleIdRoute, usersRoute, userIdRoute, bulkImportRoute, resetDemoRoute]) {
     assert.match(source, /isChef\(user\.role\)/);
   }
 });

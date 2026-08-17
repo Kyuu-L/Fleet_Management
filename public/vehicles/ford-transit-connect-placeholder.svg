@@ -1,0 +1,10 @@
+<svg width="400" height="260" viewBox="0 0 400 260" xmlns="http://www.w3.org/2000/svg">
+  <g fill="none" stroke="#8a97a0" stroke-width="6" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M40 190 L40 120 Q40 100 60 95 L140 80 L260 80 Q290 80 305 105 L340 160 L340 190 Z"/>
+    <line x1="40" y1="190" x2="340" y2="190"/>
+    <line x1="150" y1="80" x2="150" y2="160"/>
+  </g>
+  <circle cx="100" cy="195" r="22" fill="#c7cfd4" stroke="#69747c" stroke-width="4"/>
+  <circle cx="290" cy="195" r="22" fill="#c7cfd4" stroke="#69747c" stroke-width="4"/>
+  <text x="200" y="230" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#69747c">Photo à venir · Ford Transit Connect</text>
+</svg>

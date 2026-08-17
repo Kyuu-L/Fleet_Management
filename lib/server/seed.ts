@@ -43,6 +43,8 @@ const demoVehicles = [
   [25, "HG-954-SV", "Fiat Ducato 2025", 17320, "Disponible", "À jour", "/vehicles/ducato-2025.webp"],
 ] as const;
 
+ export const demoVehiclePlates = demoVehicles.map((row) => row[1]);
+
 const demoIssues = [
   [1, 3, 1, "Freinage", "Bruit important au freinage", "Un bruit métallique se fait entendre au freinage.", 44710, 1, "todo", "report"],
   [2, 2, 2, "Moteur", "Voyant moteur intermittent", "Le voyant apparaît puis disparaît pendant la tournée.", 116220, 0, "todo", "report"],

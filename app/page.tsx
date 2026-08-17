@@ -278,7 +278,35 @@ export default function Home() {
   const [newUserName, setNewUserName] = useState("");
   const [newUserRole, setNewUserRole] = useState<Role>("salarie");
   const [newUserPin, setNewUserPin] = useState("");
-  const [issueFilter, setIssueFilter] = useState<"todo" | "done">("todo");
+  const [bulkImportText, setBulkImportText] = useState(
+    [
+      "DT-708-AQ|trafic-2018|0",
+      "EJ-122-RC|ford-transit-connect|0",
+      "FA-394-DV|sprinter-w906|0",
+      "FF-348-VP|trafic-2018|0",
+      "FF-957-VN|trafic-2018|0",
+      "FY-500-HW|master-3-l2h2|0",
+      "GK-787-LD|master-3-l2h2|0",
+      "GK-834-RK|master-3-l2h2|0",
+      "GN-828-TR|master-3-l2h2|0",
+      "GP-054-JF|master-3-l2h2|0",
+      "GP-178-PG|master-3-l2h2|0",
+      "GQ-551-GD|master-3-l2h2|0",
+      "GR-787-LM|master-3-l2h2|0",
+      "HG-118-MV|ducato-2025|0",
+      "HF-052-ZA|interstar-2025|0",
+      "HF-135-WV|interstar-2025|0",
+      "HF-160-ZA|interstar-2025|0",
+      "HF-368-WT|interstar-2025|0",
+      "HF-383-YF|interstar-2025|0",
+      "HF-503-YF|interstar-2025|0",
+      "HF-932-WT|interstar-2025|0",
+      "HF-970-YZ|interstar-2025|0",
+      "HH-158-SG|interstar-2025|0",
+      "HH-331-SG|interstar-2025|0",
+    ].join("\n")
+  );
+  const [bulkImportResult, setBulkImportResult] = useState<string | null>(null); const [issueFilter, setIssueFilter] = useState<"todo" | "done">("todo");
   const [hideWeeklyControls, setHideWeeklyControls] = useState(false);
   const [workEntry, setWorkEntry] = useState<WorkEntry | null>(null);
   const [workTitle, setWorkTitle] = useState("");
@@ -793,6 +821,51 @@ export default function Home() {
       showToast("Véhicule ajouté au parc");
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Ajout impossible");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function parseBulkImportLine(line: string) {
+    const [plate, modelId, kmRaw] = line.split("|").map((part) => part.trim());
+    return { plate, modelId, km: Number(kmRaw || 0) };
+  }
+
+  async function submitBulkImport() {
+    if (saving) return;
+    const rows = bulkImportText.split("\n").map((line) => line.trim()).filter(Boolean).map(parseBulkImportLine);
+    if (rows.length === 0) { showToast("Aucune ligne à importer"); return; }
+    setSaving(true);
+    try {
+      const result = await apiRequest<{ createdCount: number; failed: { plate: string; error: string }[] }>("/api/vehicles/bulk-import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vehicles: rows }),
+      });
+      await loadState();
+      setBulkImportResult(
+        result.failed.length
+          ? `${result.createdCount} véhicule(s) importé(s), ${result.failed.length} échec(s) : ${result.failed.map((f) => `${f.plate} (${f.error})`).join(", ")}`
+          : `${result.createdCount} véhicule(s) importé(s) avec succès.`
+      );
+      showToast(`${result.createdCount} véhicule(s) importé(s)`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Import impossible");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function resetDemoFleet() {
+    if (saving) return;
+    if (!window.confirm("Supprimer tous les véhicules de démonstration (et leur historique) ? Action irréversible.")) return;
+    setSaving(true);
+    try {
+      const result = await apiRequest<{ deleted: number }>("/api/vehicles/reset-demo", { method: "POST" });
+      await loadState();
+      showToast(`${result.deleted} véhicule(s) de démo supprimé(s)`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Suppression impossible");
     } finally {
       setSaving(false);
     }
@@ -1394,11 +1467,27 @@ export default function Home() {
                 </div>
               </div>
             )}
-
             {screen === "team" && role === "chef" && (
               <div className="screen-stack">
                 <section className="mobile-heading"><p className="eyebrow">Administration</p><h1>Équipe et parc</h1><p>Gérez les véhicules et les comptes de l'équipe.</p></section>
-
+                <AccordionSection title="Import en masse du parc réel" subtitle="24 véhicules pré-remplis">
+                  <p className="muted" style={{ marginTop: 12 }}>
+                    Une ligne par véhicule, format <code>PLAQUE|modèle|km</code>. Les 24 lignes ci-dessous correspondent à ta liste — vérifie les kilométrages (à 0 par défaut) avant d'importer, tu pourras aussi les corriger un par un ensuite via "Nouveau kilométrage".
+                  </p>
+                  <textarea
+                    rows={10}
+                    value={bulkImportText}
+                    onChange={(e) => setBulkImportText(e.target.value)}
+                    style={{ marginTop: 10, fontFamily: "var(--font-geist-mono)", fontSize: 12 }}
+                  />
+                  <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+                    <button className="primary-button" style={{ margin: 0 }} disabled={saving || !bulkImportText.trim()} onClick={submitBulkImport}>
+                      {saving ? "Import…" : "Importer ces véhicules"}
+                    </button>
+                    <button className="outline-button" disabled={saving} onClick={resetDemoFleet}>Vider le parc de démonstration</button>
+                  </div>
+                  {bulkImportResult && <p className="field-help" style={{ marginTop: 10 }}>{bulkImportResult}</p>}
+                </AccordionSection>
                 <div className="dashboard-columns">
                   <div className="accordion-columns">
                     <AccordionSection title="Ajouter un véhicule">

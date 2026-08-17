@@ -10,6 +10,7 @@ export const vehicleModels: VehicleModel[] = [
   { id: "interstar-2025", label: "Nissan Interstar 2025", image: "/vehicles/interstar-2025.webp" },
   { id: "trafic-2018", label: "Renault Trafic 2018", image: "/vehicles/trafic-2018.webp" },
   { id: "ducato-2025", label: "Fiat Ducato 2025", image: "/vehicles/ducato-2025.webp" },
+  { id: "ford-transit-connect", label: "Ford Transit Connect", image: "/vehicles/ford-transit-connect-placeholder.svg" },
 ];
 
 const modelById = new Map(vehicleModels.map((model) => [model.id, model]));
