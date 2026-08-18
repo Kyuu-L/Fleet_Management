@@ -889,7 +889,7 @@ export default function Home() {
           <form className="login-card" onSubmit={login}>
             <div className="prototype-flag">MVP connecté</div>
             <p className="eyebrow">Bienvenue</p>
-            <h2>Accéder à l'application</h2>
+            <h2>Accéder à l&apos;application</h2>
             <p className="muted">Choisissez votre profil de démonstration.</p>
 
             <div className="profile-picker" role="group" aria-label="Profil de démonstration">
@@ -981,7 +981,7 @@ export default function Home() {
                   <section className="panel"><p className="empty-state">Aucun véhicule disponible pour le moment.</p></section>
                 ) : (
                   <>
-                    <section className="mobile-heading"><p className="eyebrow">{todayLabel || "Aujourd'hui"}</p><h1>Bonjour {currentUser?.name.split(" ")[0] ?? "Lucas"}</h1><p>Quel véhicule utilisez-vous aujourd'hui ?</p></section>
+                    <section className="mobile-heading"><p className="eyebrow">{todayLabel || "Aujourd'hui"}</p><h1>Bonjour {currentUser?.name.split(" ")[0] ?? "Lucas"}</h1><p>Quel véhicule utilisez-vous aujourd&apos;hui ?</p></section>
 
                     <section className="current-vehicle-card">
                       <div className="vehicle-card-copy">
@@ -997,13 +997,13 @@ export default function Home() {
                     <section>
                       <div className="section-title"><div><p className="eyebrow">Actions rapides</p><h2>Que voulez-vous faire ?</h2></div></div>
                       <div className="quick-actions">
-                        <button className="quick-card blue" onClick={() => setScreen("mileage")}><span className="action-icon">123</span><strong>Saisir le kilométrage</strong><small>Dernier relevé : aujourd'hui</small><i>→</i></button>
+                        <button className="quick-card blue" onClick={() => setScreen("mileage")}><span className="action-icon">123</span><strong>Saisir le kilométrage</strong><small>Dernier relevé : aujourd&apos;hui</small><i>→</i></button>
                         <button className="quick-card green" onClick={() => setScreen("check")}><span className="action-icon">✓</span><strong>Contrôle hebdomadaire</strong><small>17 points à vérifier</small><i>→</i></button>
                         <button className="quick-card orange" onClick={() => setScreen("report")}><span className="action-icon">!</span><strong>Signaler un problème</strong><small>Photo facultative</small><i>→</i></button>
                       </div>
                     </section>
 
-                    <section className="info-strip"><span className="info-icon">i</span><div><strong>Pas d'affectation dans l'application</strong><p>Vous pouvez changer librement de véhicule. Cette sélection sert uniquement à afficher sa fiche.</p></div></section>
+                    <section className="info-strip"><span className="info-icon">i</span><div><strong>Pas d&apos;affectation dans l&apos;application</strong><p>Vous pouvez changer librement de véhicule. Cette sélection sert uniquement à afficher sa fiche.</p></div></section>
                   </>
                 )}
               </div>
@@ -1145,7 +1145,7 @@ export default function Home() {
                     {(["front", "rear"] as const).map((axle, index) => (
                       <div className="check-row detailed brake-measure" key={axle}>
                         <span className="check-number">{index + 5}</span>
-                        <div className="check-copy"><span>Freinage</span><strong>Plaquettes {axle === "front" ? "avant" : "arrière"}</strong><small>Mesurez l'épaisseur restante entre 0 et 12 mm</small></div>
+                        <div className="check-copy"><span>Freinage</span><strong>Plaquettes {axle === "front" ? "avant" : "arrière"}</strong><small>Mesurez l&apos;épaisseur restante entre 0 et 12 mm</small></div>
                         <div className={`range-field ${padThickness[axle] ? "completed" : ""}`}>
                           <output>{padThickness[axle] || "—"}<small> mm</small></output>
                           <input aria-label={`Épaisseur des plaquettes ${axle === "front" ? "avant" : "arrière"}`} type="range" min="0" max="12" step="1" value={padThickness[axle] || "6"} onChange={(event) => setPadThickness({ ...padThickness, [axle]: event.target.value })} />
@@ -1205,7 +1205,7 @@ export default function Home() {
                   </label>
 
                   <div className="control-summary"><span className={completedCheckCount === totalCheckCount ? "complete" : ""}>{completedCheckCount}/{totalCheckCount} renseignés</span><span className={checkIssueCount ? "issue" : ""}>{checkIssueCount} anomalie{checkIssueCount > 1 ? "s" : ""}</span></div>
-                  {!controlReady && completedCheckCount >= totalCheckCount - 1 && <p className="validation-hint">Complétez les champs obligatoires, les descriptions d'anomalies et les quatre photos avant de terminer.</p>}
+                  {!controlReady && completedCheckCount >= totalCheckCount - 1 && <p className="validation-hint">Complétez les champs obligatoires, les descriptions d&apos;anomalies et les quatre photos avant de terminer.</p>}
                   <button className="primary-button" disabled={!controlReady || saving} onClick={submitWeeklyControl}>{saving ? "Enregistrement…" : "Terminer le contrôle"}</button>
                 </section>
               </div>
@@ -1228,7 +1228,7 @@ export default function Home() {
                     <div className="urgency-picker">
                       <label>
                         <input type="radio" name="urgency" checked={!reportUrgent} onChange={() => setReportUrgent(false)} />
-                        <span>Normal<small>Peut attendre le prochain passage à l'atelier</small></span>
+                        <span>Normal<small>Peut attendre le prochain passage à l&apos;atelier</small></span>
                       </label>
                       <label>
                         <input type="radio" name="urgency" checked={reportUrgent} onChange={() => setReportUrgent(true)} />
@@ -1239,10 +1239,10 @@ export default function Home() {
                   <label className="report-description"><span className="field-label">Description *</span><textarea value={reportDescription} onChange={(event) => setReportDescription(event.target.value)} placeholder="Ex. Un bruit métallique se fait entendre au freinage, surtout à faible vitesse…" rows={5} /><small>{reportDescription.trim().length ? `${reportDescription.trim().length} caractères` : "Indiquez où, quand et comment le problème se manifeste."}</small></label>
 
                   <div className="report-section-label"><span>02</span><strong>Photos</strong><small>Facultatives</small></div>
-                  <label className={`photo-drop ${reportPhotos.length ? "has-files" : ""} ${reportPhotos.length === 4 ? "full" : ""}`} htmlFor={reportPhotos.length < 4 ? "issue-photos" : undefined}><span>{reportPhotos.length === 4 ? "✓" : "＋"}</span><strong>{reportPhotos.length === 4 ? "4 photos ajoutées" : reportPhotos.length ? "Ajouter une autre photo" : "Ajouter des photos"}</strong><small>Jusqu'à 4 photos · JPG, PNG ou WebP</small></label>
+                  <label className={`photo-drop ${reportPhotos.length ? "has-files" : ""} ${reportPhotos.length === 4 ? "full" : ""}`} htmlFor={reportPhotos.length < 4 ? "issue-photos" : undefined}><span>{reportPhotos.length === 4 ? "✓" : "＋"}</span><strong>{reportPhotos.length === 4 ? "4 photos ajoutées" : reportPhotos.length ? "Ajouter une autre photo" : "Ajouter des photos"}</strong><small>Jusqu&apos;à 4 photos · JPG, PNG ou WebP</small></label>
                   <input className="visually-hidden" id="issue-photos" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={handleReportPhotos} />
                   {reportPhotos.length > 0 && <><div className="photo-preview-grid">{reportPhotos.map((photo, index) => <figure key={`${photo.name}-${index}`}><img src={photo.url} alt={`Photo jointe ${index + 1}`} /><figcaption>Photo {index + 1}</figcaption><button type="button" aria-label={`Supprimer ${photo.name}`} onClick={() => setReportPhotos(reportPhotos.filter((_, photoIndex) => photoIndex !== index))}>×</button></figure>)}</div><p className="report-photo-count">{reportPhotos.length}/4 photo{reportPhotos.length > 1 ? "s" : ""} ajoutée{reportPhotos.length > 1 ? "s" : ""}</p></>}
-                  <div className="report-notice"><span>i</span><p><strong>Le véhicule reste inchangé.</strong> Le signalement n'indique pas une prise de véhicule et ne le passe pas automatiquement en HS.</p></div>
+                  <div className="report-notice"><span>i</span><p><strong>Le véhicule reste inchangé.</strong> Le signalement n&apos;indique pas une prise de véhicule et ne le passe pas automatiquement en HS.</p></div>
                   {!reportReady && (reportCategory || reportDescription || reportPhotos.length > 0) && <p className="validation-hint">La catégorie, le kilométrage et la description sont nécessaires pour envoyer le signalement.</p>}
                   <div className="form-actions"><button type="button" className="secondary-button" disabled={saving} onClick={() => { resetProblemReport(); setScreen("home"); }}>Annuler</button><button type="button" className="primary-button" disabled={!reportReady || saving} onClick={submitProblemReport}>{saving ? "Envoi…" : "Envoyer au mécanicien"}</button></div>
                 </section>
@@ -1298,7 +1298,7 @@ export default function Home() {
                         <label><span className="field-label">Portée *</span>
                           <select value={planScope} onChange={(e) => setPlanScope(e.target.value as "model" | "vehicle")}>
                             <option value="vehicle">Un seul véhicule</option>
-                            <option value="model">Tous les véhicules d'un modèle</option>
+                            <option value="model">Tous les véhicules d&apos;un modèle</option>
                           </select>
                         </label>
                         {planScope === "vehicle" ? (
@@ -1345,7 +1345,7 @@ export default function Home() {
                             <button className="outline-button" style={{ alignSelf: "center" }} disabled={saving} onClick={() => deleteMaintenancePlan(plan.id)}>Supprimer</button>
                           </article>
                         ))}
-                        {maintenancePlans.length === 0 && <p className="empty-state">Aucun plan d'entretien programmé.</p>}
+                        {maintenancePlans.length === 0 && <p className="empty-state">Aucun plan d&apos;entretien programmé.</p>}
                       </div>
                     </section>
                   )}
@@ -1359,7 +1359,7 @@ export default function Home() {
 
             {screen === "fleet" && (
               <div className="screen-stack">
-                <section className="mobile-heading"><p className="eyebrow">Vue chef</p><h1>Vue du parc</h1><p>L'essentiel de la flotte en un coup d'œil.</p></section>
+                <section className="mobile-heading"><p className="eyebrow">Vue chef</p><h1>Vue du parc</h1><p>L&apos;essentiel de la flotte en un coup d&apos;œil.</p></section>
                 <div className="fleet-summary">
                   <div className="fleet-lead"><p className="eyebrow light-text">État du parc</p><strong>{fleetVehicles.filter((vehicle) => vehicle.status === "Disponible").length}<small>/{fleetVehicles.length}</small></strong><span>véhicules disponibles</span><div className="availability-bar"><i style={{ width: `${fleetVehicles.length ? (fleetVehicles.filter((vehicle) => vehicle.status === "Disponible").length / fleetVehicles.length) * 100 : 0}%` }} /></div></div>
                   <Metric value={`${completedWeeklyCount}/${weeklyChecks.length}`} label="Contrôles hebdo faits" tone="green" />                </div>
@@ -1396,7 +1396,7 @@ export default function Home() {
             )}
             {screen === "team" && role === "chef" && (
               <div className="screen-stack">
-                <section className="mobile-heading"><p className="eyebrow">Administration</p><h1>Équipe et parc</h1><p>Gérez les véhicules et les comptes de l'équipe.</p></section>
+                <section className="mobile-heading"><p className="eyebrow">Administration</p><h1>Équipe et parc</h1><p>Gérez les véhicules et les comptes de l&apos;équipe.</p></section>
                 <div className="dashboard-columns">
                   <div className="accordion-columns">
                     <AccordionSection title="Ajouter un véhicule">
@@ -1512,14 +1512,14 @@ export default function Home() {
         <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeWorkForm(); }}>
           <section className="work-modal" role="dialog" aria-modal="true" aria-labelledby="work-modal-title">
             <div className="work-modal-head"><div><p className="eyebrow">Saisie mécanicien</p><h2 id="work-modal-title">{workEntry.kind === "new" ? "Enregistrer une opération" : "Clôturer avec une opération"}</h2></div><button aria-label="Fermer" onClick={closeWorkForm}>×</button></div>
-            <p className="muted">L'opération, le kilométrage et la date seront ajoutés à la chronologie du véhicule.</p>
+            <p className="muted">L&apos;opération, le kilométrage et la date seront ajoutés à la chronologie du véhicule.</p>
 
             <div className="work-form-grid">
               <label><span className="field-label">Véhicule *</span><select value={workEntry.vehicleId} disabled={workEntry.kind !== "new"} onChange={(event) => changeWorkVehicle(Number(event.target.value))}>{fleetVehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.plate} · {vehicle.label}</option>)}</select></label>
               <label><span className="field-label">Date</span><div className="automatic-date"><span>✓</span><strong>{formatDateLabel(new Date())}</strong><small>Automatique</small></div></label>
             </div>
             <label className="work-field"><span className="field-label">Opération réalisée *</span><input value={workTitle} onChange={(event) => setWorkTitle(event.target.value)} placeholder="Ex. Vidange moteur et remplacement du filtre" /></label>
-            <label className="work-field"><span className="field-label">Kilométrage lors de l'opération *</span><div className="unit-input"><input value={workMileage} onChange={(event) => setWorkMileage(event.target.value.replace(/\D/g, ""))} inputMode="numeric" /><span>km</span></div></label>
+            <label className="work-field"><span className="field-label">Kilométrage lors de l&apos;opération *</span><div className="unit-input"><input value={workMileage} onChange={(event) => setWorkMileage(event.target.value.replace(/\D/g, ""))} inputMode="numeric" /><span>km</span></div></label>
             {activeWorkOperation?.recurrenceKm && workMileage && <div className="renewal-preview"><span>↻</span><p><strong>Prochaine échéance automatique</strong>À {formatKm(Number(workMileage) + activeWorkOperation.recurrenceKm)}, soit {new Intl.NumberFormat("fr-FR").format(activeWorkOperation.recurrenceKm)} km après cette intervention.</p></div>}
             {activeWorkOperation?.recurrenceMonths && <div className="renewal-preview"><span>↻</span><p><strong>Prochaine échéance automatique</strong>{activeWorkOperation.recurrenceMonths} mois après la date de cette intervention.</p></div>}
             <label className="work-field"><span className="field-label">Commentaire <small>Facultatif</small></span><textarea rows={3} value={workComment} onChange={(event) => setWorkComment(event.target.value)} placeholder="Remarque, pièce remplacée, observation…" /></label>

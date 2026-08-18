@@ -32,7 +32,7 @@ test("declares durable database and photo storage", async () => {
 
 test("keeps all write workflows connected to server routes", async () => {
   const page = await readFile(new URL("app/page.tsx", root), "utf8");
-  for (const endpoint of ["/api/login", "/api/state", "/api/mileage", "/api/issues", "/api/weekly-controls", "/api/operations/complete", "/api/vehicles/status", "/api/vehicles", "/api/users", "/api/maintenance-plans", "/api/vehicles/bulk-import", "/api/vehicles/reset-demo"]) {
+  for (const endpoint of ["/api/login", "/api/state", "/api/mileage", "/api/issues", "/api/weekly-controls", "/api/operations/complete", "/api/vehicles/status", "/api/vehicles", "/api/users", "/api/maintenance-plans"]) {
     assert.match(page, new RegExp(endpoint.replaceAll("/", "\\/")));
   }
 });
